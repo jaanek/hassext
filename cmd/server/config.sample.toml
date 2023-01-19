@@ -1,0 +1,9 @@
+[app]
+debug = false # Enable debug logging
+
+[mqtt]
+url = "tcp://localhost:1883"
+
+[emodul]
+url = "https://emodul.eu/api/v1/users/<>/modules/<>"
+token = ""
