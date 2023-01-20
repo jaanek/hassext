@@ -14,7 +14,7 @@ import (
 )
 
 func initLogger(ko *koanf.Koanf) logf.Logger {
-	opts := logf.Opts{EnableCaller: true}
+	opts := logf.Opts{EnableCaller: false}
 	if ko.Bool("app.debug") {
 		opts.Level = logf.DebugLevel
 		opts.EnableColor = true

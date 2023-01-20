@@ -2,7 +2,6 @@ package hass
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"sync"
@@ -81,35 +80,21 @@ func (m *emodul) Start(ctx context.Context) {
 		}
 	}()
 
-	// parse sensor's data on data updates
+	// parse sensor's data on updates
 	go func() {
+		// init sensors
+		mvTempSensor := NewMqttTemperatureSensor(m.lo, m.mq, DeviceFloorWaterMainValve, "floorwatermainvalve1", "Floor water main valve temperature", "hassext/floor-water-main-valve-current-temp")
+		mvSetTempSensor := NewMqttTemperatureSensor(m.lo, m.mq, DeviceFloorWaterMainValve, "floorwatermainvalvesettemp1", "Floor water main valve set temperature", "hassext/floor-water-main-valve-set-temp")
+		mvReturnTempSensor := NewMqttTemperatureSensor(m.lo, m.mq, DeviceFloorWaterMainValve, "floorwatermainvalveboilerreturntemp1", "Floor water main valve boiler return temperature", "hassext/floor-water-main-valve-boiler-return-temp")
+		sensors := make([]Sensor, 0)
+		sensors = append(sensors, mvTempSensor, mvSetTempSensor, mvReturnTempSensor)
+
 		// send configs
-		config := SensorMqttConfig{
-			Device: SensorMqttConfigDevice{
-				Identifiers:  []string{"hassext_floorwatermainvalve1"},
-				Manufacturer: "Katel",
-				Model:        "Temperature sensor",
-				Name:         "Floor water main valve",
-			},
-			DeviceClass:       "temperature",
-			UniqueId:          "hassext_floorwatermainvalve1",
-			UnitOfMeasurement: "°C",
-			ValueTemplate:     "{{ value_json.temperature }}",
-			EnabledByDefault:  true,
-			Name:              "Floor water main valve temperature",
-			StateClass:        "measurement",
-			StateTopic:        "hassext/floor-water-main-valve-current-temp",
-		}
-		bytes, err := json.Marshal(config)
-		if err != nil {
-			m.lo.Error("Valve config serialize error", "error", err)
-			return
-		}
-		fmt.Printf("Publish config %+v\n", string(bytes))
-		err = m.mq.Publish(ctx, 10*time.Second, "homeassistant/sensor/floorwatermainvalve1/temperature/config", bytes)
-		if err != nil {
-			m.lo.Error("Valve config mqtt publish", "error", err)
-			return
+		for _, sensor := range sensors {
+			err := sensor.PublishConfig(ctx)
+			if err != nil {
+				m.lo.Error("Sensor config mqtt publish", "error", err)
+			}
 		}
 
 		// start listening updates
@@ -117,32 +102,39 @@ func (m *emodul) Start(ctx context.Context) {
 			select {
 			case <-m.DataUpdated():
 				{
-					// parse built-in valve
-					v, err := m.ParseValve(1012)
+					// parse floor water main valve
+					mv, err := m.ParseValve(1012)
 					if err != nil {
-						m.lo.Error("Valve parse", "error", err)
+						m.lo.Error("Main valve parse", "error", err)
 						continue
 					}
+
 					// trigger currentTemp update if changed
-					if m.mainValve == nil || (*m.mainValve.currentTemp != *v.currentTemp) {
-						data := struct {
-							Temperature float32 `json:"temperature"`
-						}{
-							Temperature: float32(*v.currentTemp) / 10,
-						}
-						bytes, err := json.Marshal(data)
+					if m.mainValve == nil || (*m.mainValve.currentTemp != *mv.currentTemp) {
+						err := mvTempSensor.PublishData(ctx, float32(*mv.currentTemp)/10)
 						if err != nil {
-							m.lo.Error("Valve serialize error", "error", err)
-							continue
-						}
-						fmt.Printf("Publish data %+v, value: %v\n", string(bytes), *v.currentTemp)
-						err = m.mq.Publish(ctx, 10*time.Second, "hassext/floor-water-main-valve-current-temp", bytes)
-						if err != nil {
-							m.lo.Error("Valve mqtt publish", "error", err)
+							m.lo.Error("Sensor mqtt publish ", "error", err)
 						}
 					}
-					m.mainValve = v
-					fmt.Printf("Valve data updated %+v\n", m.mainValve)
+
+					// trigger setTemp update if changed
+					if m.mainValve == nil || (*m.mainValve.setTemp != *mv.setTemp) {
+						err := mvSetTempSensor.PublishData(ctx, float32(*mv.setTemp))
+						if err != nil {
+							m.lo.Error("Sensor mqtt publish ", "error", err)
+						}
+					}
+
+					// trigger returnTemp update if changed
+					if m.mainValve == nil || (*m.mainValve.returnTemp != *mv.returnTemp) {
+						err := mvReturnTempSensor.PublishData(ctx, float32(*mv.returnTemp))
+						if err != nil {
+							m.lo.Error("Sensor mqtt publish ", "error", err)
+						}
+					}
+
+					// update valve with latest updates
+					m.mainValve = mv
 				}
 			case <-ctx.Done():
 				return

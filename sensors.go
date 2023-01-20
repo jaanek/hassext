@@ -1,8 +1,13 @@
 package hass
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/zerodha/logf"
 )
 
 type SensorMqttConfig struct {
@@ -37,7 +42,7 @@ type BuiltInValve struct {
 type Errors []error
 
 func (list Errors) Error() string {
-	errs := make([]string, 0)
+	errs := make([]string, 0, len(list))
 	for _, e := range list {
 		errs = append(errs, e.Error())
 	}
@@ -45,7 +50,7 @@ func (list Errors) Error() string {
 }
 
 func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
-	// check if we have a valve with id
+	// check if we have a valve with specified id
 	parentPath := fmt.Sprintf("$.tiles[?(@.id == %v)].params", id)
 	obj := m.GetObject(parentPath)
 	if obj == nil {
@@ -65,4 +70,67 @@ func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
 		return valve, errs
 	}
 	return valve, nil
+}
+
+type Sensor interface {
+	PublishConfig(context.Context) error
+	PublishData(context.Context, float32) error
+}
+
+// MQTT Temperature Sensor
+type mqttTempSensor struct {
+	lo     logf.Logger
+	mq     MqttClient
+	uid    string
+	config SensorMqttConfig
+}
+
+func NewMqttTemperatureSensor(log logf.Logger, mq MqttClient, device SensorMqttConfigDevice, uid string, name string, topic string) Sensor {
+	return &mqttTempSensor{
+		lo:  log,
+		uid: uid,
+		mq:  mq,
+		config: SensorMqttConfig{
+			Device:            device,
+			DeviceClass:       "temperature",
+			UniqueId:          "hassext_" + uid,
+			UnitOfMeasurement: "°C",
+			ValueTemplate:     "{{ value_json.temperature }}",
+			EnabledByDefault:  true,
+			Name:              name,
+			StateClass:        "measurement",
+			StateTopic:        topic,
+		},
+	}
+}
+
+func (s *mqttTempSensor) PublishConfig(ctx context.Context) error {
+	bytes, err := json.Marshal(s.config)
+	if err != nil {
+		return fmt.Errorf("mqtt config serialize error %w", err)
+	}
+	s.lo.Info("Publish", "config", string(bytes))
+	err = s.mq.Publish(ctx, 10*time.Second, "homeassistant/sensor/"+s.uid+"/"+s.config.DeviceClass+"/config", bytes)
+	if err != nil {
+		return fmt.Errorf("Valve config mqtt publish error %w", err)
+	}
+	return nil
+}
+
+func (s *mqttTempSensor) PublishData(ctx context.Context, value float32) error {
+	data := struct {
+		Temperature float32 `json:"temperature"`
+	}{
+		Temperature: value,
+	}
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("Sensor data serialize error %w", err)
+	}
+	s.lo.Info("Publish", "data", string(bytes), "value", value)
+	err = s.mq.Publish(ctx, 10*time.Second, s.config.StateTopic, bytes)
+	if err != nil {
+		return fmt.Errorf("sensor publish error %w", err)
+	}
+	return nil
 }
