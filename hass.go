@@ -30,10 +30,16 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	mq := NewMqttClient(lo, "hassext", uri)
 
 	return &HassExt{
-		opts:   opts,
-		lo:     lo,
-		mq:     mq,
-		emodul: NewEmodulClient(lo, mq, ko.String("emodul.url"), ko.String("emodul.token")),
+		opts: opts,
+		lo:   lo,
+		mq:   mq,
+		emodul: NewEmodulClient(lo, mq, &HttpClientParams{
+			SkipRetryAuthorization: false,
+			Url:                    ko.String("emodul.url"),
+			Username:               ko.String("emodul.username"),
+			Password:               ko.String("emodul.password"),
+			ModuleId:               ko.String("emodul.moduleid"),
+		}),
 	}, nil
 }
 
@@ -53,6 +59,10 @@ func (h *HassExt) Run(ctx context.Context) error {
 	}
 
 	// Start emodul
+	if err = h.emodul.Init(); err != nil {
+		h.lo.Error("eModul init", "failed", err)
+		return err
+	}
 	go func() {
 		h.emodul.Start(ctx)
 	}()

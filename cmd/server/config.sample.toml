@@ -5,5 +5,7 @@ debug = false # Enable debug logging
 url = "tcp://localhost:1883"
 
 [emodul]
-url = "https://emodul.eu/api/v1/users/<>/modules/<>"
-token = ""
+url = "https://emodul.eu/api/v1"
+username = ""
+password = ""
+moduleid = ""

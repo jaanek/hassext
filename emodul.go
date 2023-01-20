@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"strconv"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ func (d *data) Get() any {
 }
 
 type EModul interface {
+	Init() error
 	Start(context.Context)
 	FetchData() error
 	DataUpdated() chan struct{}
@@ -47,25 +49,44 @@ type emodul struct {
 	mq     MqttClient
 	data   data
 	http   httpclient.HttpClient
-	url    string
-	token  string
+	params *HttpClientParams
 	errors chan error
 	update chan struct{}
 	// parsed latest data
 	mainValve *BuiltInValve
 }
 
-func NewEmodulClient(lo logf.Logger, mq MqttClient, url, token string) EModul {
+type HttpClientParams struct {
+	SkipRetryAuthorization bool
+	Url                    string
+	Username               string
+	Password               string
+	ModuleId               string
+	UserId                 uint64
+	Token                  string
+}
+
+func NewEmodulClient(lo logf.Logger, mq MqttClient, params *HttpClientParams) EModul {
 	return &emodul{
 		lo:        lo,
 		mq:        mq,
-		http:      httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay),
-		url:       url,
-		token:     token,
+		http:      httpclient.New(getEmodulDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay),
+		params:    params,
 		errors:    make(chan error, 10),
 		update:    make(chan struct{}, 1),
 		mainValve: &BuiltInValve{},
 	}
+}
+
+func (m *emodul) Init() error {
+	token, userId, err := newEmodulAccessToken(m.lo, m.params)
+	if err != nil || token == "" {
+		return err
+	}
+	m.params.Token = token
+	m.params.UserId = userId
+	m.lo.Info("login", "user_id", userId, "access token", token)
+	return nil
 }
 
 func (m *emodul) Start(ctx context.Context) {
@@ -151,11 +172,13 @@ func (m *emodul) Start(ctx context.Context) {
 
 func (m *emodul) FetchData() error {
 	// GET data
-	req, err := httpclient.NewRequest("GET", m.url, nil)
+	req, err := httpclient.NewRequest("GET", m.params.Url+"/users/"+strconv.FormatInt(int64(m.params.UserId), 10)+"/modules/"+m.params.ModuleId, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.token))
+	if m.params.Token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
+	}
 	res, err := m.http.Do(req)
 	if err != nil {
 		return err
