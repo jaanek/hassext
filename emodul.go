@@ -51,19 +51,20 @@ type emodul struct {
 	token  string
 	errors chan error
 	update chan struct{}
-	// sensors
+	// parsed latest data
 	mainValve *BuiltInValve
 }
 
 func NewEmodulClient(lo logf.Logger, mq MqttClient, url, token string) EModul {
 	return &emodul{
-		lo:     lo,
-		mq:     mq,
-		http:   httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay),
-		url:    url,
-		token:  token,
-		errors: make(chan error, 10),
-		update: make(chan struct{}, 1),
+		lo:        lo,
+		mq:        mq,
+		http:      httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay),
+		url:       url,
+		token:     token,
+		errors:    make(chan error, 10),
+		update:    make(chan struct{}, 1),
+		mainValve: &BuiltInValve{},
 	}
 }
 
@@ -102,39 +103,23 @@ func (m *emodul) Start(ctx context.Context) {
 			select {
 			case <-m.DataUpdated():
 				{
-					// parse floor water main valve
-					mv, err := m.ParseValve(1012)
+					// parse floor water main valve and trigger sensor updates if values have changed
+					// at the end save the last values for the valve to compare against next time
+					v, err := m.ParseValve(1012)
 					if err != nil {
 						m.lo.Error("Main valve parse", "error", err)
 						continue
 					}
-
-					// trigger currentTemp update if changed
-					if m.mainValve == nil || (*m.mainValve.currentTemp != *mv.currentTemp) {
-						err := mvTempSensor.PublishData(ctx, float32(*mv.currentTemp)/10)
-						if err != nil {
-							m.lo.Error("Sensor mqtt publish ", "error", err)
-						}
+					if isValueChanged(m.mainValve.currentTemp, v.currentTemp) {
+						sensorPublish(m.lo, ctx, mvTempSensor, float32(*v.currentTemp)/10)
 					}
-
-					// trigger setTemp update if changed
-					if m.mainValve == nil || (*m.mainValve.setTemp != *mv.setTemp) {
-						err := mvSetTempSensor.PublishData(ctx, float32(*mv.setTemp))
-						if err != nil {
-							m.lo.Error("Sensor mqtt publish ", "error", err)
-						}
+					if isValueChanged(m.mainValve.setTemp, v.setTemp) {
+						sensorPublish(m.lo, ctx, mvSetTempSensor, float32(*v.setTemp))
 					}
-
-					// trigger returnTemp update if changed
-					if m.mainValve == nil || (*m.mainValve.returnTemp != *mv.returnTemp) {
-						err := mvReturnTempSensor.PublishData(ctx, float32(*mv.returnTemp))
-						if err != nil {
-							m.lo.Error("Sensor mqtt publish ", "error", err)
-						}
+					if isValueChanged(m.mainValve.returnTemp, v.returnTemp) {
+						sensorPublish(m.lo, ctx, mvReturnTempSensor, float32(*v.returnTemp))
 					}
-
-					// update valve with latest updates
-					m.mainValve = mv
+					m.mainValve = v
 				}
 			case <-ctx.Done():
 				return
@@ -231,4 +216,24 @@ func (m *emodul) GetBool(path string, errors *Errors) *bool {
 		*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
 	}
 	return &val
+}
+
+func isValueChanged(oldValue *int64, newValue *int64) bool {
+	if newValue == nil {
+		return false
+	}
+	if oldValue == nil {
+		return true
+	}
+	if *oldValue != *newValue {
+		return true
+	}
+	return false
+}
+
+func sensorPublish(lo logf.Logger, ctx context.Context, sensor Sensor, value float32) {
+	err := sensor.PublishData(ctx, value)
+	if err != nil {
+		lo.Error("Sensor mqtt publish ", "error", err)
+	}
 }
