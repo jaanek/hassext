@@ -1,4 +1,4 @@
-package hass
+package emodul
 
 var (
 	DeviceFloorWaterMainValve = SensorMqttConfigDevice{

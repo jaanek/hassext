@@ -1,0 +1,28 @@
+# Working modes of pumps change
+POST https://emodul.eu/frontend/send_control_data
+POST /frontend/send_control_data HTTP/1.1
+Accept: application/json, text/plain, */*
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US,en;q=0.7
+Connection: keep-alive
+Content-Length: 42
+Content-Type: application/json;charset=UTF-8
+Cookie: auth=0d75b4c2ba7f4c3282562907ed2991fd41450e8a1a3a7b35e6f871df7f8e30319f1b72d19f97aa7419eb434055a14c554ca1f39de02db1cc4d0f6619a54248d4; lang=en; ApplicationGatewayAffinity=c630fe7aa53ef4152b097c714686d1afcf093ced4cbfef7a8c92de1b7be3eeaf; ApplicationGatewayAffinityCORS=c630fe7aa53ef4152b097c714686d1afcf093ced4cbfef7a8c92de1b7be3eeaf; session=ApdJaBA0bZL5sm%2Btnu1%2B4RUa83aX48iB%2FMsMFY%2FdVYzvBTRk%2BH0fwJDmAtltlY9HrdODYYHC6oWG2mGQ3OOdO%2Fm%2F8YY4YNq0qgm9o9MHQe%2Ff3WPLBev0rIiDXezzdaZnX2K1Mg0hvIsy82E0MFX1f2DRfXuyhoroS%2BIBuzok55CFKZdQpkIodlb0znpEXu%2Bta%2FsNQ4yeWnEItWamwcvWsrjntHiOaxwmQeNo7or2OfmiLZDVlPQThf0gTTbYiN0om7cdn3n4A4m2CUeq1s69pnOqlNk1J6KvfXDOPEhSSkIdcWbWHYvIbDDmBuqdNtDKZoijhb2PQ1oduXo%2BymLYNlAs4kSNT6snxiiXiXIv0zOic9EGa9%2FlGaEwX0ZTJNm3%2BVoAgbGbl4tviuZb0JQyBJejKxpnRsdKYAmoY10ApQy0pRKp4fMlr5UeQ7zUXog6EYfsqFsr4%2FcDBvF6kH1gWsa%2BHmLcr3XtdLy0tz%2Bqrl8%3D
+Host: emodul.eu
+Origin: https://emodul.eu
+Referer: https://emodul.eu/web/5e71888c0f0ae9827773181f67aeb994/control
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-origin
+Sec-GPC: 1
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36
+sec-ch-ua: "Not_A Brand";v="99", "Brave";v="109", "Chromium";v="109"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+
+Data body (House heating):
+[{"ido":2011,"params":0,"module_index":0}]
+
+Data body (Parallel pumps):
+[{"ido":2011,"params":2,"module_index":0}]
+

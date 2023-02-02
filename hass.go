@@ -6,6 +6,8 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/mq"
 	"github.com/knadh/koanf"
 	"github.com/zerodha/logf"
 )
@@ -13,8 +15,8 @@ import (
 type HassExt struct {
 	opts   *Options
 	lo     logf.Logger
-	mq     MqttClient
-	emodul EModul
+	mq     mq.MqttClient
+	emodul emodul.EModul
 }
 
 // init home assistant integration
@@ -27,13 +29,13 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	if err != nil {
 		return nil, err
 	}
-	mq := NewMqttClient(lo, "hassext", uri)
+	mq := mq.NewMqttClient(lo, "hassext", uri)
 
 	return &HassExt{
 		opts: opts,
 		lo:   lo,
 		mq:   mq,
-		emodul: NewEmodulClient(lo, mq, &HttpClientParams{
+		emodul: emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
 			SkipRetryAuthorization: false,
 			Url:                    ko.String("emodul.url"),
 			Username:               ko.String("emodul.username"),

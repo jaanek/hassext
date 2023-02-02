@@ -1,4 +1,4 @@
-package hass
+package mq
 
 import (
 	"context"

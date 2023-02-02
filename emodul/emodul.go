@@ -1,4 +1,4 @@
-package hass
+package emodul
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jaanek/hassext/httpclient"
+	"github.com/jaanek/hassext/mq"
 	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/zerodha/logf"
@@ -46,7 +47,7 @@ type EModul interface {
 
 type emodul struct {
 	lo     logf.Logger
-	mq     MqttClient
+	mq     mq.MqttClient
 	data   data
 	http   httpclient.HttpClient
 	params *HttpClientParams
@@ -66,7 +67,7 @@ type HttpClientParams struct {
 	Token                  string
 }
 
-func NewEmodulClient(lo logf.Logger, mq MqttClient, params *HttpClientParams) EModul {
+func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams) EModul {
 	return &emodul{
 		lo:        lo,
 		mq:        mq,

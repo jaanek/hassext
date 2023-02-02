@@ -1,4 +1,4 @@
-package hass
+package emodul
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jaanek/hassext/mq"
 	"github.com/zerodha/logf"
 )
 
@@ -80,12 +81,12 @@ type Sensor interface {
 // MQTT Temperature Sensor
 type mqttTempSensor struct {
 	lo     logf.Logger
-	mq     MqttClient
+	mq     mq.MqttClient
 	uid    string
 	config SensorMqttConfig
 }
 
-func NewMqttTemperatureSensor(log logf.Logger, mq MqttClient, device SensorMqttConfigDevice, uid string, name string, topic string) Sensor {
+func NewMqttTemperatureSensor(log logf.Logger, mq mq.MqttClient, device SensorMqttConfigDevice, uid string, name string, topic string) Sensor {
 	return &mqttTempSensor{
 		lo:  log,
 		uid: uid,
