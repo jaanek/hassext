@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jaanek/hassext/httpclient"
 	"github.com/zerodha/logf"
 )
 
-func getEmodulDefaultRetryCheckPolicy(lo logf.Logger, params *HttpClientParams) httpclient.RetryCheck {
+func getApiDefaultRetryCheckPolicy(lo logf.Logger, params *HttpClientParams) httpclient.RetryCheck {
 	return func(req *httpclient.Request, resp *http.Response, err error) (bool, error) {
 		if err != nil {
 			return true, err
@@ -28,17 +29,36 @@ func getEmodulDefaultRetryCheckPolicy(lo logf.Logger, params *HttpClientParams) 
 		// if unauthorized then try to get a new access token and try again
 		skipRetryAuthorization := params != nil && params.SkipRetryAuthorization
 		if resp.StatusCode == http.StatusUnauthorized && !skipRetryAuthorization {
-			token, userId, err := newEmodulAccessToken(lo, params)
-			if err != nil || token == "" {
-				return true, err
+			url := req.URL.Scheme + "://" + req.URL.Host + req.URL.Path
+
+			// if we are not dealing with api url then relogin frontend
+			if strings.HasPrefix(url, params.ApiUrl) {
+				// new api token
+				token, userId, err := NewApiToken(lo, params)
+				if err != nil || token == "" {
+					return true, err
+				}
+				lo.Info("login", "user_id", userId, "access token", token)
+				// update current api instance so that other requests succeed
+				params.Token = token
+				params.UserId = userId
+				// update current request that got unauthorized so that next try succeeds
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+				return true, nil
+			} else if strings.HasPrefix(url, params.FrontendUrl) {
+				loginRes, err := FrontendLogin(lo, params)
+				if err != nil {
+					return true, err
+				}
+				req.Header.Del("Cookie")
+				params.SetCookies(req)
+				params.ModuleHash = loginRes.SelectedModuleHash
+				params.ModuleIndex = loginRes.SelectedModuleIndex
+				lo.Info("frontend login", "success", loginRes.Authenticated, "module index", params.ModuleIndex, "module hash", params.ModuleHash)
+				return true, nil
+			} else {
+				lo.Warn("login url unknown", "url", req.URL.RequestURI())
 			}
-			lo.Info("login", "user_id", userId, "access token", token)
-			// update current api instance so that other requests succeed
-			params.Token = token
-			params.UserId = userId
-			// update current request that got unauthorized so that next try succeeds
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			return true, nil
 		}
 		return false, nil
 	}
@@ -61,7 +81,7 @@ func emodulDefaultRetryWaitDelay(attemptNum int, resp *http.Response) (waitDelay
 	return
 }
 
-func newEmodulAccessToken(lo logf.Logger, params *HttpClientParams) (string, uint64, error) {
+func NewApiToken(lo logf.Logger, params *HttpClientParams) (string, uint64, error) {
 	// payload
 	up := struct {
 		Username string `json:"username"`
@@ -75,7 +95,7 @@ func newEmodulAccessToken(lo logf.Logger, params *HttpClientParams) (string, uin
 		return "", 0, err
 	}
 	client := httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay)
-	req, err := httpclient.NewRequest("POST", params.Url+"/authentication", bytes.NewReader(payload))
+	req, err := httpclient.NewRequest("POST", params.ApiUrl+"/authentication", bytes.NewReader(payload))
 	if err != nil {
 		return "", 0, err
 	}

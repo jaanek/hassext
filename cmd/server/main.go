@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	hass "github.com/jaanek/hassext"
+	"github.com/jaanek/hassext/cmd"
 )
 
 var (
@@ -16,12 +17,12 @@ var (
 
 func main() {
 	// Initialize and load the config
-	ko, err := initConfig()
+	ko, err := cmd.InitConfig()
 	if err != nil {
 		fmt.Printf("error loading config %v", err)
 		os.Exit(-1)
 	}
-	var lo = initLogger(ko)
+	var lo = cmd.InitLogger(ko)
 	lo.Info("booting hassext server", "version", buildString)
 
 	// Initialize hassext

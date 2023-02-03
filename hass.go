@@ -16,7 +16,7 @@ type HassExt struct {
 	opts   *Options
 	lo     logf.Logger
 	mq     mq.MqttClient
-	emodul emodul.EModul
+	Emodul emodul.EModul
 }
 
 // init home assistant integration
@@ -35,12 +35,14 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		opts: opts,
 		lo:   lo,
 		mq:   mq,
-		emodul: emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
+		Emodul: emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
 			SkipRetryAuthorization: false,
-			Url:                    ko.String("emodul.url"),
+			ApiUrl:                 ko.String("emodul.apiUrl"),
+			FrontendUrl:            ko.String("emodul.frontendUrl"),
 			Username:               ko.String("emodul.username"),
 			Password:               ko.String("emodul.password"),
-			ModuleId:               ko.String("emodul.moduleid"),
+			ModuleHash:             ko.String("emodul.moduleid"),
+			Cookies:                map[string]string{},
 		}),
 	}, nil
 }
@@ -61,12 +63,12 @@ func (h *HassExt) Run(ctx context.Context) error {
 	}
 
 	// Start emodul
-	if err = h.emodul.Init(); err != nil {
+	if err = h.Emodul.Init(); err != nil {
 		h.lo.Error("eModul init", "failed", err)
 		return err
 	}
 	go func() {
-		h.emodul.Start(ctx)
+		h.Emodul.Start(ctx)
 	}()
 
 	return nil

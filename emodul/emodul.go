@@ -2,8 +2,9 @@ package emodul
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type EModul interface {
 	Start(context.Context)
 	FetchData() error
 	DataUpdated() chan struct{}
+	SetWorkingMode(mode WorkingMode) (bool, error)
 	GetObject(string) any
 	GetArray(string) []any
 	GetInt64(string, *Errors) *int64
@@ -59,19 +61,37 @@ type emodul struct {
 
 type HttpClientParams struct {
 	SkipRetryAuthorization bool
-	Url                    string
+	ApiUrl                 string
+	FrontendUrl            string
 	Username               string
 	Password               string
-	ModuleId               string
 	UserId                 uint64
 	Token                  string
+	ModuleHash             string
+	ModuleIndex            int
+	Cookies                map[string]string
+}
+
+type WorkingMode uint
+
+const (
+	HOUSE_HEATING   WorkingMode = 0
+	BOILER_PRIORITY             = 1
+	PARALLEL_PUMPS              = 2
+	SUMMER_MODE                 = 3
+)
+
+type HttpSetWorkingModes struct {
+	Ido         uint        `json:"ido"`
+	Params      WorkingMode `json:"params"`
+	ModuleIndex int         `json:"module_index"`
 }
 
 func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams) EModul {
 	return &emodul{
 		lo:        lo,
 		mq:        mq,
-		http:      httpclient.New(getEmodulDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay),
+		http:      httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay),
 		params:    params,
 		errors:    make(chan error, 10),
 		update:    make(chan struct{}, 1),
@@ -80,13 +100,22 @@ func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams)
 }
 
 func (m *emodul) Init() error {
-	token, userId, err := newEmodulAccessToken(m.lo, m.params)
+	// api login
+	token, userId, err := NewApiToken(m.lo, m.params)
 	if err != nil || token == "" {
 		return err
 	}
 	m.params.Token = token
 	m.params.UserId = userId
 	m.lo.Info("login", "user_id", userId, "access token", token)
+
+	// frontend login
+	loginRes, err := FrontendLogin(m.lo, m.params)
+	if err != nil {
+		return err
+	}
+	m.params.ModuleHash = loginRes.SelectedModuleHash
+	m.params.ModuleIndex = loginRes.SelectedModuleIndex
 	return nil
 }
 
@@ -172,23 +201,10 @@ func (m *emodul) Start(ctx context.Context) {
 }
 
 func (m *emodul) FetchData() error {
-	// GET data
-	req, err := httpclient.NewRequest("GET", m.params.Url+"/users/"+strconv.FormatInt(int64(m.params.UserId), 10)+"/modules/"+m.params.ModuleId, nil)
-	if err != nil {
-		return err
-	}
-	if m.params.Token != "" {
+	var url = m.params.ApiUrl + "/users/" + strconv.FormatInt(int64(m.params.UserId), 10) + "/modules/" + m.params.ModuleHash
+	body, err := m.Get(url, func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
-	}
-	res, err := m.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return err
-	}
+	}, HttpRespCallback)
 
 	// Parse the response and write to the storage
 	data, err := oj.Parse(body)
@@ -200,8 +216,45 @@ func (m *emodul) FetchData() error {
 	return nil
 }
 
+func (m *emodul) SetWorkingMode(mode WorkingMode) (bool, error) {
+	data, err := json.Marshal([]HttpSetWorkingModes{
+		{
+			Ido:         2011,
+			Params:      mode,
+			ModuleIndex: m.params.ModuleIndex,
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	body, err := m.Post(m.params.FrontendUrl+"/frontend/send_control_data", data, func(req *httpclient.Request) {
+		m.params.SetCookies(req)
+	}, func(resp *http.Response) {
+		m.params.SaveCookies(resp)
+	})
+	if err != nil {
+		return false, nil
+	}
+
+	// validate response
+	if string(body) != "1" {
+		m.lo.Warn("SetWorkingMode returned unknown return code", "code", string(body))
+		return false, nil
+	}
+	m.lo.Info("SetWorking mode success", "mode", mode)
+	return true, nil
+}
+
 func (m *emodul) DataUpdated() chan struct{} {
 	return m.update
+}
+
+func (m *emodul) Get(url string, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
+	return Get(m.http, url, setReq, getResp)
+}
+
+func (m *emodul) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
+	return Post(m.http, url, data, setReq, getResp)
 }
 
 func (m *emodul) GetObject(path string) any {

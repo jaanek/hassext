@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"github.com/zerodha/logf"
 )
 
-func initLogger(ko *koanf.Koanf) logf.Logger {
+func InitLogger(ko *koanf.Koanf) logf.Logger {
 	opts := logf.Opts{EnableCaller: false}
 	if ko.Bool("app.debug") {
 		opts.Level = logf.DebugLevel
@@ -22,7 +22,7 @@ func initLogger(ko *koanf.Koanf) logf.Logger {
 	return logf.New(opts)
 }
 
-func initConfig() (*koanf.Koanf, error) {
+func InitConfig() (*koanf.Koanf, error) {
 	var (
 		ko = koanf.New(".")
 		f  = flag.NewFlagSet("front", flag.ContinueOnError)
