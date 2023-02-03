@@ -42,6 +42,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 			Username:               ko.String("emodul.username"),
 			Password:               ko.String("emodul.password"),
 			ModuleHash:             ko.String("emodul.moduleid"),
+			ModuleIndex:            0,
 			Cookies:                map[string]string{},
 		}),
 	}, nil
