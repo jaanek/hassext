@@ -8,15 +8,17 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/jaanek/hassext/emodul"
 	"github.com/jaanek/hassext/mq"
+	"github.com/jaanek/hassext/rest"
 	"github.com/knadh/koanf"
 	"github.com/zerodha/logf"
 )
 
 type HassExt struct {
 	opts   *Options
-	lo     logf.Logger
-	mq     mq.MqttClient
+	Lo     logf.Logger
+	Mq     mq.MqttClient
 	Emodul emodul.EModul
+	Rest   rest.Rest
 }
 
 // init home assistant integration
@@ -33,8 +35,8 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 
 	return &HassExt{
 		opts: opts,
-		lo:   lo,
-		mq:   mq,
+		Lo:   lo,
+		Mq:   mq,
 		Emodul: emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
 			SkipRetryAuthorization: false,
 			ApiUrl:                 ko.String("emodul.apiUrl"),
@@ -45,19 +47,25 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 			ModuleIndex:            0,
 			Cookies:                map[string]string{},
 		}),
+		Rest: rest.Rest{
+			Lo:        lo,
+			Host:      ko.String("rest.host"),
+			Port:      ko.Int("rest.port"),
+			JwtSecret: ko.String("rest.jwtSecret"),
+		},
 	}, nil
 }
 
 func (h *HassExt) Run(ctx context.Context) error {
 	// ct, c := context.WithCancel(context.Background())
-	_, err := h.mq.Connect(context.Background(), 1*time.Minute)
+	_, err := h.Mq.Connect(context.Background(), 1*time.Minute)
 	if err != nil {
 		return err
 	}
 
-	// Subscribe to sensors sending to mqtt
-	_, err = h.mq.Subscribe(ctx, 1*time.Minute, "zigbee2mqtt/Katel-toru-vesi1", func(client mqtt.Client, msg mqtt.Message) {
-		h.lo.Info("[MQTT] message", "topic", msg.Topic(), "payload", string(msg.Payload()))
+	// TEST - Subscribe to sensors sending to mqtt
+	_, err = h.Mq.Subscribe(ctx, 1*time.Minute, "zigbee2mqtt/Katel-toru-vesi1", func(client mqtt.Client, msg mqtt.Message) {
+		h.Lo.Info("[MQTT] message", "topic", msg.Topic(), "payload", string(msg.Payload()))
 	})
 	if err != nil {
 		return err
@@ -65,16 +73,22 @@ func (h *HassExt) Run(ctx context.Context) error {
 
 	// Start emodul
 	if err = h.Emodul.Init(); err != nil {
-		h.lo.Error("eModul init", "failed", err)
+		h.Lo.Error("eModul init", "failed", err)
 		return err
 	}
 	go func() {
 		h.Emodul.Start(ctx)
 	}()
 
+	// Start rest api
+	go func() {
+		h.Rest.Start(ctx)
+	}()
+
 	return nil
 }
 
 func (h *HassExt) Shutdown() {
-	h.mq.Disconnect()
+	h.Mq.Disconnect()
+	h.Rest.Server.Shutdown(context.Background())
 }

@@ -10,3 +10,8 @@ frontendUrl = "https://emodul.eu"
 username = ""
 password = ""
 moduleid = ""
+
+[rest]
+host = "localhost"
+port = 8833
+jwtSecret = ""
