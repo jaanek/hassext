@@ -18,7 +18,7 @@ type HassExt struct {
 	Lo     logf.Logger
 	Mq     mq.MqttClient
 	Emodul emodul.EModul
-	Rest   rest.Rest
+	Rest   *rest.Rest
 }
 
 // init home assistant integration
@@ -32,27 +32,24 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		return nil, err
 	}
 	mq := mq.NewMqttClient(lo, "hassext", uri)
+	em := emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
+		SkipRetryAuthorization: false,
+		ApiUrl:                 ko.String("emodul.apiUrl"),
+		FrontendUrl:            ko.String("emodul.frontendUrl"),
+		Username:               ko.String("emodul.username"),
+		Password:               ko.String("emodul.password"),
+		ModuleHash:             ko.String("emodul.moduleid"),
+		ModuleIndex:            0,
+		Cookies:                map[string]string{},
+	})
+	r := rest.NewRest(lo, em, ko.String("rest.host"), ko.Int("rest.port"), ko.String("rest.jwtSecret"))
 
 	return &HassExt{
-		opts: opts,
-		Lo:   lo,
-		Mq:   mq,
-		Emodul: emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
-			SkipRetryAuthorization: false,
-			ApiUrl:                 ko.String("emodul.apiUrl"),
-			FrontendUrl:            ko.String("emodul.frontendUrl"),
-			Username:               ko.String("emodul.username"),
-			Password:               ko.String("emodul.password"),
-			ModuleHash:             ko.String("emodul.moduleid"),
-			ModuleIndex:            0,
-			Cookies:                map[string]string{},
-		}),
-		Rest: rest.Rest{
-			Lo:        lo,
-			Host:      ko.String("rest.host"),
-			Port:      ko.Int("rest.port"),
-			JwtSecret: ko.String("rest.jwtSecret"),
-		},
+		opts:   opts,
+		Lo:     lo,
+		Mq:     mq,
+		Emodul: em,
+		Rest:   r,
 	}, nil
 }
 
@@ -90,5 +87,5 @@ func (h *HassExt) Run(ctx context.Context) error {
 
 func (h *HassExt) Shutdown() {
 	h.Mq.Disconnect()
-	h.Rest.Server.Shutdown(context.Background())
+	h.Rest.Shutdown(context.Background())
 }

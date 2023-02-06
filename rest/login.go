@@ -28,7 +28,7 @@ func HandleLoginUP(rest *Rest) http.HandlerFunc {
 		var req loginRequest
 		err := HttpBind(r.Body, &req)
 		if err != nil {
-			HttpError(rest.Lo, w, r, http.StatusBadRequest, err)
+			HttpError(rest.lo, w, r, http.StatusBadRequest, err)
 			return
 		}
 		_ = strings.TrimSpace(req.Username)
@@ -42,20 +42,20 @@ func HandleLoginUP(rest *Rest) http.HandlerFunc {
 		// }
 		// Comparing the password with the hash
 		if err := bcrypt.CompareHashAndPassword([]byte(loginUP.Password), []byte(password)); err != nil {
-			HttpError(rest.Lo, w, r, http.StatusUnauthorized, errors.New(fmt.Sprintf("Password mismatch! %v", err)))
+			HttpError(rest.lo, w, r, http.StatusUnauthorized, errors.New(fmt.Sprintf("Password mismatch! %v", err)))
 			return
 		}
 
 		// create jwt user
-		cookie, token, err := CreateJwtCookie(loginUP.Name, loginUP.Email, rest.JwtSecret)
+		cookie, token, err := CreateJwtCookie(loginUP.Name, loginUP.Email, rest.jwtSecret)
 		if err != nil {
-			HttpError(rest.Lo, w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("%v", err)))
+			HttpError(rest.lo, w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("%v", err)))
 			return
 		}
 		http.SetCookie(w, cookie)
 
 		// send token
-		HttpJson(rest.Lo, w, r, http.StatusOK, map[string]interface{}{
+		HttpJson(rest.lo, w, r, http.StatusOK, map[string]interface{}{
 			"token": token,
 		})
 	}
@@ -69,7 +69,7 @@ func HandleLogoutUP(rest *Rest) http.HandlerFunc {
 		cookie.Value = ""
 		cookie.MaxAge = 0 // deletes the cookie
 		http.SetCookie(w, cookie)
-		HttpJson(rest.Lo, w, r, http.StatusOK, map[string]interface{}{
+		HttpJson(rest.lo, w, r, http.StatusOK, map[string]interface{}{
 			"success": true,
 		})
 	}

@@ -38,7 +38,9 @@ type EModul interface {
 	Start(context.Context)
 	FetchData() error
 	DataUpdated() chan struct{}
-	SetWorkingMode(mode WorkingMode) (bool, error)
+	SetWorkingMode(mode WorkingMode) error
+	BoilerFireUp() error
+	BoilerDamping() error
 	GetObject(string) any
 	GetArray(string) []any
 	GetInt64(string, *Errors) *int64
@@ -72,7 +74,14 @@ type HttpClientParams struct {
 	Cookies                map[string]string
 }
 
-type WorkingMode uint
+type BoilerDevice uint
+
+const (
+	Ignition        BoilerDevice = 251
+	WorkingModePump BoilerDevice = 2011
+)
+
+type WorkingMode = uint
 
 const (
 	HOUSE_HEATING   WorkingMode = 0
@@ -81,10 +90,17 @@ const (
 	SUMMER_MODE                 = 3
 )
 
-type HttpSetWorkingModes struct {
-	Ido         uint        `json:"ido"`
-	Params      WorkingMode `json:"params"`
-	ModuleIndex int         `json:"module_index"`
+type BoilerStartStopMode = uint
+
+const (
+	FIRE_UP BoilerStartStopMode = 0
+	DAMPING                     = 1
+)
+
+type HttpControlData struct {
+	Ido         BoilerDevice `json:"ido"`
+	Params      uint         `json:"params"`
+	ModuleIndex int          `json:"module_index"`
 }
 
 func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams) EModul {
@@ -216,16 +232,37 @@ func (m *emodul) FetchData() error {
 	return nil
 }
 
-func (m *emodul) SetWorkingMode(mode WorkingMode) (bool, error) {
-	data, err := json.Marshal([]HttpSetWorkingModes{
-		{
-			Ido:         2011,
-			Params:      mode,
-			ModuleIndex: m.params.ModuleIndex,
-		},
-	})
+func (m *emodul) SetWorkingMode(mode WorkingMode) error {
+	req := HttpControlData{
+		Ido:         WorkingModePump,
+		Params:      mode,
+		ModuleIndex: m.params.ModuleIndex,
+	}
+	return m.sendControlData(req, "SetWorkingMode")
+}
+
+func (m *emodul) BoilerFireUp() error {
+	req := HttpControlData{
+		Ido:         Ignition,
+		Params:      FIRE_UP,
+		ModuleIndex: m.params.ModuleIndex,
+	}
+	return m.sendControlData(req, "BoilerFireUp")
+}
+
+func (m *emodul) BoilerDamping() error {
+	req := HttpControlData{
+		Ido:         Ignition,
+		Params:      DAMPING,
+		ModuleIndex: m.params.ModuleIndex,
+	}
+	return m.sendControlData(req, "BoilerDamping")
+}
+
+func (m *emodul) sendControlData(req HttpControlData, prefix string) error {
+	data, err := json.Marshal([]HttpControlData{req})
 	if err != nil {
-		return false, err
+		return err
 	}
 	body, err := m.Post(m.params.FrontendUrl+"/frontend/send_control_data", data, func(req *httpclient.Request) {
 		m.params.SetCookies(req)
@@ -233,16 +270,16 @@ func (m *emodul) SetWorkingMode(mode WorkingMode) (bool, error) {
 		m.params.SaveCookies(resp)
 	})
 	if err != nil {
-		return false, nil
+		return fmt.Errorf("http post error: %w", err)
 	}
 
 	// validate response
 	if string(body) != "1" {
-		m.lo.Warn("SetWorkingMode returned unknown return code", "code", string(body))
-		return false, nil
+		m.lo.Warn(prefix+" returned unknown http result code", "code", string(body))
+		return fmt.Errorf("unknown http result code: %s", body)
 	}
-	m.lo.Info("SetWorking mode success", "mode", mode)
-	return true, nil
+	m.lo.Info(prefix + " success")
+	return nil
 }
 
 func (m *emodul) DataUpdated() chan struct{} {

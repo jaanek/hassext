@@ -17,7 +17,7 @@ import (
 func NewRouter(rest *Rest) http.Handler {
 	jwtMiddleware := jwtmiddleware.UseJwtMiddleware(
 		func(w http.ResponseWriter, req *http.Request, err error) {
-			HttpError(rest.Lo, w, req, http.StatusUnauthorized, err)
+			HttpError(rest.lo, w, req, http.StatusUnauthorized, err)
 		},
 		func(token *jwt.Token) (interface{}, error) {
 			// NB! verify that we are dealing with the same signing method used when singning jwt token
@@ -25,7 +25,7 @@ func NewRouter(rest *Rest) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(rest.JwtSecret), nil
+			return []byte(rest.jwtSecret), nil
 		},
 		JwtUserKey,
 		func() jwt.Claims {
@@ -42,6 +42,10 @@ func NewRouter(rest *Rest) http.Handler {
 	r.Methods(http.MethodGet).Handler("/oauth/response", HandleOAuthResponse(rest))
 	r.Methods(http.MethodGet).Handler("/test", handlePing(rest))
 	r.Methods(http.MethodGet).Use(jwtMiddleware).Handler("/ping", handleTest(rest))
+	// emodul
+	r.Methods(http.MethodPost).Handler("/boiler-fireup", HandleBoilerFireUp(rest))
+	r.Methods(http.MethodPost).Handler("/boiler-damping", HandleBoilerDamping(rest))
+	r.Methods(http.MethodPost).Handler("/working-mode", HandleWorkingMode(rest))
 
 	// common middleware's
 	// n := negroni.Classic() // Includes some default middlewares
@@ -54,7 +58,7 @@ func NewRouter(rest *Rest) http.Handler {
 
 func handlePing(rest *Rest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		HttpJson(rest.Lo, w, r, http.StatusOK, map[string]interface{}{
+		HttpJson(rest.lo, w, r, http.StatusOK, map[string]interface{}{
 			"ping": "pong",
 		})
 	}
@@ -63,7 +67,7 @@ func handlePing(rest *Rest) http.HandlerFunc {
 func handleTest(rest *Rest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token, _ := r.Context().Value(JwtUserKey).(*jwt.Token)
-		HttpJson(rest.Lo, w, r, http.StatusOK, map[string]interface{}{
+		HttpJson(rest.lo, w, r, http.StatusOK, map[string]interface{}{
 			"token": token.Raw,
 		})
 	}
