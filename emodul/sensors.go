@@ -128,7 +128,7 @@ func (s *mqttTempSensor) PublishData(ctx context.Context, value float32) error {
 	if err != nil {
 		return fmt.Errorf("Sensor data serialize error %w", err)
 	}
-	s.lo.Info("Publish", "data", string(bytes), "value", value)
+	s.lo.Info("Publish", "topic", s.config.StateTopic, "data", string(bytes), "value", value)
 	err = s.mq.Publish(ctx, 10*time.Second, s.config.StateTopic, bytes)
 	if err != nil {
 		return fmt.Errorf("sensor publish error %w", err)

@@ -7,6 +7,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/hub"
 	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/rest"
 	"github.com/knadh/koanf"
@@ -16,6 +17,7 @@ import (
 type HassExt struct {
 	opts   *Options
 	Lo     logf.Logger
+	Hub    *hub.Hub
 	Mq     mq.MqttClient
 	Emodul emodul.EModul
 	Rest   *rest.Rest
@@ -31,7 +33,8 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	if err != nil {
 		return nil, err
 	}
-	mq := mq.NewMqttClient(lo, "hassext", uri)
+	hub := hub.New(lo)
+	mq := mq.NewMqttClient(lo, "hassext", uri, MessageHandlers(lo, hub))
 	em := emodul.NewEmodulClient(lo, mq, &emodul.HttpClientParams{
 		SkipRetryAuthorization: false,
 		ApiUrl:                 ko.String("emodul.apiUrl"),
@@ -47,6 +50,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	return &HassExt{
 		opts:   opts,
 		Lo:     lo,
+		Hub:    hub,
 		Mq:     mq,
 		Emodul: em,
 		Rest:   r,
@@ -54,16 +58,12 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 }
 
 func (h *HassExt) Run(ctx context.Context) error {
-	// ct, c := context.WithCancel(context.Background())
-	_, err := h.Mq.Connect(context.Background(), 1*time.Minute)
-	if err != nil {
-		return err
-	}
-
-	// TEST - Subscribe to sensors sending to mqtt
-	_, err = h.Mq.Subscribe(ctx, 1*time.Minute, "zigbee2mqtt/Katel-toru-vesi1", func(client mqtt.Client, msg mqtt.Message) {
-		h.Lo.Info("[MQTT] message", "topic", msg.Topic(), "payload", string(msg.Payload()))
-	})
+	// start the message hub
+	go func() {
+		h.Hub.Run(ctx)
+	}()
+	// connect to the mq so that messages start flowing to the hub
+	_, err := h.Mq.Connect(ctx, 30*time.Second)
 	if err != nil {
 		return err
 	}
@@ -88,4 +88,27 @@ func (h *HassExt) Run(ctx context.Context) error {
 func (h *HassExt) Shutdown() {
 	h.Mq.Disconnect()
 	h.Rest.Shutdown(context.Background())
+}
+
+func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
+	return func() []mq.MessageHandler {
+		return []mq.MessageHandler{
+			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch1-stainless-4button", func(m mqtt.Message) error {
+				var payload = m.Payload()
+				h.Broadcast <- hub.Message{
+					Topic: "sound-switch-leiliruum",
+					Data:  payload,
+				}
+				return nil
+			}),
+			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch2-white-4button", func(m mqtt.Message) error {
+				var payload = m.Payload()
+				h.Broadcast <- hub.Message{
+					Topic: "sound-switch-sauna-eesruum",
+					Data:  payload,
+				}
+				return nil
+			}),
+		}
+	}
 }

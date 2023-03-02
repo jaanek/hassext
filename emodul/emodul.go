@@ -238,7 +238,7 @@ func (m *emodul) SetWorkingMode(mode WorkingMode) error {
 		Params:      mode,
 		ModuleIndex: m.params.ModuleIndex,
 	}
-	return m.sendControlData(req, "SetWorkingMode")
+	return m.sendControlData(req, "SetWorkingMode "+strconv.Itoa(int(mode)))
 }
 
 func (m *emodul) BoilerFireUp() error {
