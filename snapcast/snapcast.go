@@ -47,8 +47,8 @@ type Stream struct {
 type ServerStatus struct {
 	Groups         map[string]*Group
 	Clients        map[string]*Client
-	Streams        []*Stream
-	PlayingStreams []*Stream
+	Streams        []Stream
+	PlayingStreams []Stream
 }
 
 type snapcast struct {
@@ -74,8 +74,8 @@ func New(lo logf.Logger, params *HttpClientParams) Snapcast {
 		Status: ServerStatus{
 			Groups:         map[string]*Group{},
 			Clients:        map[string]*Client{},
-			Streams:        make([]*Stream, 0),
-			PlayingStreams: make([]*Stream, 0),
+			Streams:        make([]Stream, 0),
+			PlayingStreams: make([]Stream, 0),
 		},
 	}
 }
@@ -304,8 +304,8 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 	// clear the status
 	s.Status.Groups = make(map[string]*Group)
 	s.Status.Clients = make(map[string]*Client)
-	s.Status.Streams = make([]*Stream, 0)
-	s.Status.PlayingStreams = make([]*Stream, 0)
+	s.Status.Streams = make([]Stream, 0)
+	s.Status.PlayingStreams = make([]Stream, 0)
 
 	// parse groups and clients
 	groupsArr := result.GetArray("$.result.server.groups.*")
@@ -375,7 +375,7 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 
 	// get streams
 	streamIdsArr := result.GetArray("$.result.server.streams[*].id")
-	streamStatusArr := result.GetArray("$.result.server.streams[*].id")
+	streamStatusArr := result.GetArray("$.result.server.streams[*].status")
 	if streamIdsArr != nil {
 		// convert from any[] => []string
 		for i := 0; i < len(streamIdsArr); i++ {
@@ -384,9 +384,9 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 			id, idOk := idAny.(string)
 			status, statusOk := statusAny.(string)
 			if idOk && statusOk {
-				stream := &Stream{
+				stream := Stream{
 					Id:     strings.Trim(id, " "),
-					Status: strings.Trim(status, " "),
+					Status: strings.ToLower(strings.Trim(status, " ")),
 				}
 				s.Status.Streams = append(s.Status.Streams, stream)
 				if stream.Status == "playing" {
