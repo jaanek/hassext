@@ -10,17 +10,21 @@ import (
 	"github.com/jaanek/hassext/hub"
 	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/rest"
+	"github.com/jaanek/hassext/snapcast"
+	"github.com/jaanek/hassext/sound"
 	"github.com/knadh/koanf"
 	"github.com/zerodha/logf"
 )
 
 type HassExt struct {
-	opts   *Options
-	Lo     logf.Logger
-	Hub    *hub.Hub
-	Mq     mq.MqttClient
-	Emodul emodul.EModul
-	Rest   *rest.Rest
+	opts     *Options
+	Lo       logf.Logger
+	Hub      *hub.Hub
+	Mq       mq.MqttClient
+	Emodul   emodul.EModul
+	Snapcast snapcast.Snapcast
+	Rest     *rest.Rest
+	Sound    sound.Sound
 }
 
 // init home assistant integration
@@ -46,18 +50,29 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		Cookies:                map[string]string{},
 	})
 	r := rest.NewRest(lo, em, ko.String("rest.host"), ko.Int("rest.port"), ko.String("rest.jwtSecret"))
+	sc := snapcast.New(lo, &snapcast.HttpClientParams{
+		ApiUrl: ko.String("snapcast.apiUrl"),
+	})
+	sound := sound.New(lo, hub, sc)
 
 	return &HassExt{
-		opts:   opts,
-		Lo:     lo,
-		Hub:    hub,
-		Mq:     mq,
-		Emodul: em,
-		Rest:   r,
+		opts:     opts,
+		Lo:       lo,
+		Hub:      hub,
+		Mq:       mq,
+		Emodul:   em,
+		Snapcast: sc,
+		Rest:     r,
+		Sound:    sound,
 	}, nil
 }
 
 func (h *HassExt) Run(ctx context.Context) error {
+	// start sound listener
+	go func() {
+		h.Sound.Init()
+	}()
+
 	// start the message hub
 	go func() {
 		h.Hub.Run(ctx)
@@ -82,12 +97,18 @@ func (h *HassExt) Run(ctx context.Context) error {
 		h.Rest.Start(ctx)
 	}()
 
+	// Start Snapcast
+	go func() {
+		h.Snapcast.Run(ctx)
+	}()
+
 	return nil
 }
 
 func (h *HassExt) Shutdown() {
 	h.Mq.Disconnect()
 	h.Rest.Shutdown(context.Background())
+	h.Sound.Shutdown()
 }
 
 func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
@@ -96,7 +117,7 @@ func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
 			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch1-stainless-4button", func(m mqtt.Message) error {
 				var payload = m.Payload()
 				h.Broadcast <- hub.Message{
-					Topic: "sound-switch-leiliruum",
+					Topic: sound.TopicLeiliruum,
 					Data:  payload,
 				}
 				return nil
@@ -104,7 +125,7 @@ func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
 			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch2-white-4button", func(m mqtt.Message) error {
 				var payload = m.Payload()
 				h.Broadcast <- hub.Message{
-					Topic: "sound-switch-sauna-eesruum",
+					Topic: sound.TopicSaunaEesruum,
 					Data:  payload,
 				}
 				return nil

@@ -51,15 +51,16 @@ func NewMqttClient(log logf.Logger, id string, uri *url.URL, handlers func() []M
 		var handlers = handlers()
 		log.Info(fmt.Sprintf("[mqtt] (re)connected. (re)subscribing message handlers (%v) ...", len(handlers)))
 		for _, h := range handlers {
-			if token := c.Subscribe(h.Topic(), 0, func(c mqtt.Client, m mqtt.Message) {
-				err := h.Callback(m)
+			var handler = h
+			if token := c.Subscribe(handler.Topic(), 0, func(c mqtt.Client, m mqtt.Message) {
+				err := handler.Callback(m)
 				if err != nil {
-					log.Warn(fmt.Sprintf("[mqtt] handler message listener error (topic: %s): %v", h.Topic(), err))
+					log.Warn(fmt.Sprintf("[mqtt] handler message listener error (topic: %s): %v", handler.Topic(), err))
 				}
 			}); token.Wait() && token.Error() != nil {
-				log.Warn(fmt.Sprintf("[mqtt] handler subscribe error (topic: %s): %v", h.Topic(), token.Error()))
+				log.Warn(fmt.Sprintf("[mqtt] handler subscribe error (topic: %s): %v", handler.Topic(), token.Error()))
 			} else {
-				log.Info(fmt.Sprintf("[mqtt] handler (re)subscribed (topic: %s)", h.Topic()))
+				log.Info(fmt.Sprintf("[mqtt] handler (re)subscribed (topic: %s)", handler.Topic()))
 			}
 		}
 		log.Info(fmt.Sprintf("[mqtt] (re)subscribed message handlers (%v) ...", len(handlers)))

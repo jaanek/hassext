@@ -220,7 +220,7 @@ func (m *emodul) FetchData() error {
 	var url = m.params.ApiUrl + "/users/" + strconv.FormatInt(int64(m.params.UserId), 10) + "/modules/" + m.params.ModuleHash
 	body, err := m.Get(url, func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
-	}, HttpRespCallback)
+	}, httpclient.HttpRespCallback)
 
 	// Parse the response and write to the storage
 	data, err := oj.Parse(body)
@@ -287,11 +287,11 @@ func (m *emodul) DataUpdated() chan struct{} {
 }
 
 func (m *emodul) Get(url string, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
-	return Get(m.http, url, setReq, getResp)
+	return httpclient.Get(m.http, url, setReq, getResp)
 }
 
 func (m *emodul) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
-	return Post(m.http, url, data, setReq, getResp)
+	return httpclient.Post(m.http, url, data, setReq, getResp)
 }
 
 func (m *emodul) GetObject(path string) any {

@@ -1,10 +1,8 @@
 package emodul
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/jaanek/hassext/httpclient"
@@ -45,48 +43,6 @@ type ModulData struct {
 	// Style                  string `json:"style"`
 }
 
-func HttpReqCallback(req *httpclient.Request) {}
-func HttpRespCallback(resp *http.Response)    {}
-
-func Get(client httpclient.HttpClient, url string, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
-	// GET data
-	req, err := httpclient.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	setReq(req)
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	getResp(res)
-	return body, nil
-}
-
-func Post(client httpclient.HttpClient, url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
-	req, err := httpclient.NewRequest("POST", url, bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	setReq(req)
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	getResp(res)
-	return body, nil
-}
-
 func (p *HttpClientParams) SaveCookies(resp *http.Response) {
 	for _, cookie := range resp.Cookies() {
 		p.Cookies[cookie.Name] = cookie.Value
@@ -107,7 +63,7 @@ func FrontendLogin(lo logf.Logger, params *HttpClientParams) (*HttpLoginResponse
 	client := httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay)
 
 	// get emodule start cookies by visiting front page
-	body, err := Get(client, params.FrontendUrl+"/login", HttpReqCallback, func(resp *http.Response) {
+	body, err := httpclient.Get(client, params.FrontendUrl+"/login", httpclient.HttpReqCallback, func(resp *http.Response) {
 		params.SaveCookies(resp)
 	})
 
@@ -122,7 +78,7 @@ func FrontendLogin(lo logf.Logger, params *HttpClientParams) (*HttpLoginResponse
 	if err != nil {
 		return nil, err
 	}
-	body, err = Post(client, params.FrontendUrl+"/frontend/login", data, func(req *httpclient.Request) {
+	body, err = httpclient.Post(client, params.FrontendUrl+"/frontend/login", data, func(req *httpclient.Request) {
 		params.SetCookies(req)
 	}, func(resp *http.Response) {
 		params.SaveCookies(resp)

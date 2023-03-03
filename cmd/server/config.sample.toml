@@ -15,3 +15,6 @@ moduleid = ""
 host = "localhost"
 port = 8833
 jwtSecret = ""
+
+[snapcast]
+apiUrl = "https://snapcast.oja.me"
