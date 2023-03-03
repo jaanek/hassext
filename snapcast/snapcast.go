@@ -39,10 +39,16 @@ type Client struct {
 	Volume    int64
 }
 
+type Stream struct {
+	Id     string
+	Status string
+}
+
 type ServerStatus struct {
-	Groups    map[string]*Group
-	Clients   map[string]*Client
-	StreamIds []string
+	Groups         map[string]*Group
+	Clients        map[string]*Client
+	Streams        []*Stream
+	PlayingStreams []*Stream
 }
 
 type snapcast struct {
@@ -66,9 +72,10 @@ func New(lo logf.Logger, params *HttpClientParams) Snapcast {
 		errors:   make(chan error, 10),
 		requests: make(chan any, 10),
 		Status: ServerStatus{
-			Groups:    map[string]*Group{},
-			Clients:   map[string]*Client{},
-			StreamIds: make([]string, 0),
+			Groups:         map[string]*Group{},
+			Clients:        map[string]*Client{},
+			Streams:        make([]*Stream, 0),
+			PlayingStreams: make([]*Stream, 0),
 		},
 	}
 }
@@ -204,13 +211,13 @@ func (s *snapcast) ClientChangeStream(clientId string, up bool) error {
 	if err != nil {
 		return err
 	}
-	streams := s.Status.StreamIds
+	streams := s.Status.PlayingStreams
 
 	// find the next stream id to set
 	idx := 0
 	for i := 0; i < len(streams); i++ {
-		streamId := streams[i]
-		if group.StreamId == streamId {
+		stream := streams[i]
+		if group.StreamId == stream.Id {
 			idx = i
 		}
 	}
@@ -227,8 +234,8 @@ func (s *snapcast) ClientChangeStream(clientId string, up bool) error {
 			idx -= 1
 		}
 	}
-	nextStreamId := streams[idx]
-	body, err := s.RpcCall(jrpc.NewGroupSetStream(group.Id, nextStreamId))
+	nextStream := streams[idx]
+	body, err := s.RpcCall(jrpc.NewGroupSetStream(group.Id, nextStream.Id))
 	if err != nil {
 		return err
 	}
@@ -297,7 +304,8 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 	// clear the status
 	s.Status.Groups = make(map[string]*Group)
 	s.Status.Clients = make(map[string]*Client)
-	s.Status.StreamIds = make([]string, 0)
+	s.Status.Streams = make([]*Stream, 0)
+	s.Status.PlayingStreams = make([]*Stream, 0)
 
 	// parse groups and clients
 	groupsArr := result.GetArray("$.result.server.groups.*")
@@ -366,18 +374,27 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 	}
 
 	// get streams
-	streamIdsAny := result.GetArray("$.result.server.streams[*].id")
-	if streamIdsAny != nil {
+	streamIdsArr := result.GetArray("$.result.server.streams[*].id")
+	streamStatusArr := result.GetArray("$.result.server.streams[*].id")
+	if streamIdsArr != nil {
 		// convert from any[] => []string
-		for _, item := range streamIdsAny {
-			if id, ok := item.(string); ok {
-				sid := strings.Trim(id, " ")
-				if sid != "" {
-					s.Status.StreamIds = append(s.Status.StreamIds, sid)
+		for i := 0; i < len(streamIdsArr); i++ {
+			idAny := streamIdsArr[i]
+			statusAny := streamStatusArr[i]
+			id, idOk := idAny.(string)
+			status, statusOk := statusAny.(string)
+			if idOk && statusOk {
+				stream := &Stream{
+					Id:     strings.Trim(id, " "),
+					Status: strings.Trim(status, " "),
+				}
+				s.Status.Streams = append(s.Status.Streams, stream)
+				if stream.Status == "playing" {
+					s.Status.PlayingStreams = append(s.Status.PlayingStreams, stream)
 				}
 			}
 		}
-		s.lo.Info(fmt.Sprintf("Stream ids: %v", s.Status.StreamIds))
+		s.lo.Info("Data", "streams", s.Status.Streams, "playing streams", s.Status.PlayingStreams)
 	}
 	return
 }

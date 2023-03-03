@@ -68,15 +68,26 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 }
 
 func (h *HassExt) Run(ctx context.Context) error {
+	// start the message hub
+	go func() {
+		h.Hub.Run(ctx)
+	}()
+
 	// start sound listener
 	go func() {
 		h.Sound.Init()
 	}()
 
-	// start the message hub
+	// Start rest api
 	go func() {
-		h.Hub.Run(ctx)
+		h.Rest.Start(ctx)
 	}()
+
+	// Start Snapcast
+	go func() {
+		h.Snapcast.Run(ctx)
+	}()
+
 	// connect to the mq so that messages start flowing to the hub
 	_, err := h.Mq.Connect(ctx, 30*time.Second)
 	if err != nil {
@@ -92,23 +103,15 @@ func (h *HassExt) Run(ctx context.Context) error {
 		h.Emodul.Start(ctx)
 	}()
 
-	// Start rest api
-	go func() {
-		h.Rest.Start(ctx)
-	}()
-
-	// Start Snapcast
-	go func() {
-		h.Snapcast.Run(ctx)
-	}()
-
 	return nil
 }
 
 func (h *HassExt) Shutdown() {
+	h.Lo.Info("Hass shutting down ...")
+	// h.Sound.Shutdown()
 	h.Mq.Disconnect()
 	h.Rest.Shutdown(context.Background())
-	h.Sound.Shutdown()
+	h.Lo.Info("Hass shutdown success")
 }
 
 func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {

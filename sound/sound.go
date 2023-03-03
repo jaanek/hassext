@@ -18,16 +18,26 @@ type Sound interface {
 	Shutdown()
 }
 
-type SoundSwitch struct {
+type SwitchListener interface {
+	hub.Client
+	Topic() string
+}
+
+type IkeaSwitch struct {
 	lo               logf.Logger
-	enabled          bool
 	snapcast         snapcast.Snapcast
+	enabled          bool
+	listenTopic      string
 	snapcastClientId string
 }
 
-func (s *SoundSwitch) Receive(data []byte) error {
+func (s *IkeaSwitch) Topic() string {
+	return s.listenTopic
+}
+
+func (s *IkeaSwitch) Receive(data []byte) error {
 	if !s.enabled {
-		s.lo.Debug("Sound switch. On data receive. Switch disabled", "name", s.snapcastClientId)
+		s.lo.Debug("Sound switch. On data receive. Switch disabled", "topic", s.listenTopic, "name", s.snapcastClientId)
 		return nil
 	}
 	msg := &IkeaSwitchMessage{}
@@ -61,49 +71,48 @@ func (s *SoundSwitch) Receive(data []byte) error {
 }
 
 type sound struct {
-	hub          *hub.Hub
-	leiliruum    *SoundSwitch
-	saunaEesruum *SoundSwitch
+	hub       *hub.Hub
+	listeners []SwitchListener
 }
 
-func New(lo logf.Logger, hub *hub.Hub, snapcast snapcast.Snapcast) Sound {
+func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast) Sound {
 	return &sound{
-		hub: hub,
-		leiliruum: &SoundSwitch{
-			lo:               lo,
-			enabled:          true,
-			snapcast:         snapcast,
-			snapcastClientId: "zone-leiliruum",
-		},
-		saunaEesruum: &SoundSwitch{
-			lo:               lo,
-			enabled:          false,
-			snapcast:         snapcast,
-			snapcastClientId: "",
+		hub: h,
+		listeners: []SwitchListener{
+			&IkeaSwitch{
+				lo:               lo,
+				snapcast:         snapcast,
+				enabled:          true,
+				listenTopic:      TopicLeiliruum,
+				snapcastClientId: "zone-leiliruum",
+			},
+			&IkeaSwitch{
+				lo:               lo,
+				snapcast:         snapcast,
+				enabled:          false,
+				listenTopic:      TopicSaunaEesruum,
+				snapcastClientId: "",
+			},
 		},
 	}
 }
 
 func (s *sound) Init() {
 	// register into the hub
-	s.hub.Register <- hub.Registration{
-		Topic:  TopicLeiliruum,
-		Client: s.leiliruum,
-	}
-	s.hub.Register <- hub.Registration{
-		Topic:  TopicSaunaEesruum,
-		Client: s.saunaEesruum,
+	for _, listener := range s.listeners {
+		s.hub.Register <- hub.Registration{
+			Topic:  listener.Topic(),
+			Client: listener,
+		}
 	}
 }
 
 func (s *sound) Shutdown() {
 	// unregister from hub
-	s.hub.Unregister <- hub.Registration{
-		Topic:  TopicLeiliruum,
-		Client: s.leiliruum,
-	}
-	s.hub.Unregister <- hub.Registration{
-		Topic:  TopicSaunaEesruum,
-		Client: s.saunaEesruum,
+	for _, listener := range s.listeners {
+		s.hub.Unregister <- hub.Registration{
+			Topic:  listener.Topic(),
+			Client: listener,
+		}
 	}
 }
