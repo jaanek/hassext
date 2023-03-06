@@ -6,59 +6,38 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
+	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/httpclient"
 	"github.com/jaanek/hassext/mq"
-	"github.com/ohler55/ojg/jp"
 	"github.com/ohler55/ojg/oj"
 	"github.com/zerodha/logf"
 )
 
-type data struct {
-	sync.RWMutex
-	val any
-}
-
-func (d *data) Write(val any) {
-	d.Lock()
-	defer d.Unlock()
-	d.val = val
-}
-
-func (d *data) Get() any {
-	d.RLock()
-	defer d.RUnlock()
-	return d.val
-}
-
 type EModul interface {
 	Init() error
 	Start(context.Context)
-	FetchData() error
-	DataUpdated() chan struct{}
 	SetWorkingMode(mode WorkingMode) error
 	BoilerFireUp() error
 	BoilerDamping() error
-	GetObject(string) any
-	GetArray(string) []any
-	GetInt64(string, *Errors) *int64
-	GetString(string, *Errors) *string
-	GetBool(string, *Errors) *bool
+	SetBufferTargetTemp(BufferTempReadingLocation, uint) error
 	ParseValve(uint) (*BuiltInValve, error)
 }
 
 type emodul struct {
-	lo     logf.Logger
-	mq     mq.MqttClient
-	data   data
-	http   httpclient.HttpClient
-	params *HttpClientParams
-	errors chan error
-	update chan struct{}
+	lo         logf.Logger
+	mq         mq.MqttClient
+	http       httpclient.HttpClient
+	params     *HttpClientParams
+	errors     chan error
+	moduleData data.Data
+	menuData   data.Data
+	dataUpdate chan struct{}
 	// parsed latest data
-	mainValve *BuiltInValve
+	mainValve        *BuiltInValve
+	topBufferTemp    *TemperatureSensor
+	bottomBufferTemp *TemperatureSensor
 }
 
 type HttpClientParams struct {
@@ -77,8 +56,10 @@ type HttpClientParams struct {
 type BoilerDevice uint
 
 const (
-	Ignition        BoilerDevice = 251
-	WorkingModePump BoilerDevice = 2011
+	Ignition         BoilerDevice = 251
+	WorkingModePump  BoilerDevice = 2011
+	TopBufferTemp    BoilerDevice = 3680
+	BottomBufferTemp BoilerDevice = 3681
 )
 
 type WorkingMode = uint
@@ -97,6 +78,13 @@ const (
 	DAMPING                     = 1
 )
 
+type BufferTempReadingLocation = uint
+
+const (
+	BUFFER_TOP    BufferTempReadingLocation = 0
+	BUFFER_BOTTOM BufferTempReadingLocation = 1
+)
+
 type HttpControlData struct {
 	Ido         BoilerDevice `json:"ido"`
 	Params      uint         `json:"params"`
@@ -105,13 +93,15 @@ type HttpControlData struct {
 
 func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams) EModul {
 	return &emodul{
-		lo:        lo,
-		mq:        mq,
-		http:      httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay),
-		params:    params,
-		errors:    make(chan error, 10),
-		update:    make(chan struct{}, 1),
-		mainValve: &BuiltInValve{},
+		lo:               lo,
+		mq:               mq,
+		http:             httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay),
+		params:           params,
+		errors:           make(chan error, 10),
+		dataUpdate:       make(chan struct{}, 1),
+		mainValve:        &BuiltInValve{},
+		topBufferTemp:    &TemperatureSensor{},
+		bottomBufferTemp: &TemperatureSensor{},
 	}
 }
 
@@ -154,8 +144,21 @@ func (m *emodul) Start(ctx context.Context) {
 		mvTempSensor := NewMqttTemperatureSensor(m.lo, m.mq, DeviceFloorWaterMainValve, "floorwatermainvalve1", "Floor water main valve temperature", "hassext/floor-water-main-valve-current-temp")
 		mvSetTempSensor := NewMqttTemperatureSensor(m.lo, m.mq, DeviceFloorWaterMainValve, "floorwatermainvalvesettemp1", "Floor water main valve set temperature", "hassext/floor-water-main-valve-set-temp")
 		mvReturnTempSensor := NewMqttTemperatureSensor(m.lo, m.mq, DeviceFloorWaterMainValve, "floorwatermainvalveboilerreturntemp1", "Floor water main valve boiler return temperature", "hassext/floor-water-main-valve-boiler-return-temp")
+		sensorBufferTopTemp := NewMqttTemperatureSensor(m.lo, m.mq, DeviceBoilerBufferTank, "boilerbuffertank-toptemp", "Boiler buffer tank top temperature", "hassext/boiler-buffer-tank-top-temp")
+		sensorBuffeTopTargetTemp := NewMqttTemperatureSensor(m.lo, m.mq, DeviceBoilerBufferTank, "boilerbuffertank-toptargettemp", "Boiler buffer tank top target temperature", "hassext/boiler-buffer-tank-top-target-temp")
+		sensorBufferBottomTemp := NewMqttTemperatureSensor(m.lo, m.mq, DeviceBoilerBufferTank, "boilerbuffertank-bottomtemp", "Boiler buffer tank bottom temperature", "hassext/boiler-buffer-tank-bottom-temp")
+		sensorBufferBottomTargetTemp := NewMqttTemperatureSensor(m.lo, m.mq, DeviceBoilerBufferTank, "boilerbuffertank-bottomtargettemp", "Boiler buffer tank bottom target temperature", "hassext/boiler-buffer-tank-bottom-target-temp")
 		sensors := make([]Sensor, 0)
-		sensors = append(sensors, mvTempSensor, mvSetTempSensor, mvReturnTempSensor)
+		sensors = append(
+			sensors,
+			mvTempSensor,
+			mvSetTempSensor,
+			mvReturnTempSensor,
+			sensorBufferTopTemp,
+			sensorBuffeTopTargetTemp,
+			sensorBufferBottomTemp,
+			sensorBufferBottomTargetTemp,
+		)
 
 		// send configs
 		for _, sensor := range sensors {
@@ -168,7 +171,7 @@ func (m *emodul) Start(ctx context.Context) {
 		// start listening updates
 		for {
 			select {
-			case <-m.DataUpdated():
+			case <-m.dataUpdate:
 				{
 					// parse floor water main valve and trigger sensor updates if values have changed
 					// at the end save the last values for the valve to compare against next time
@@ -187,6 +190,32 @@ func (m *emodul) Start(ctx context.Context) {
 						sensorPublish(m.lo, ctx, mvReturnTempSensor, float32(*v.returnTemp))
 					}
 					m.mainValve = v
+
+					// get temp sensor settings from menu data
+					topBufferTemp, err := m.ParseTempSensor(1018)
+					if err != nil {
+						m.lo.Error("top buffer parsing", "error", err)
+					} else {
+						if isValueChanged(m.topBufferTemp.currentTemp, topBufferTemp.currentTemp) {
+							sensorPublish(m.lo, ctx, sensorBufferTopTemp, float32(*topBufferTemp.currentTemp)/10)
+						}
+						if isValueChanged(m.topBufferTemp.targetTemp, topBufferTemp.targetTemp) {
+							sensorPublish(m.lo, ctx, sensorBuffeTopTargetTemp, float32(*topBufferTemp.targetTemp))
+						}
+						m.topBufferTemp = topBufferTemp
+					}
+					bottomBufferTemp, err := m.ParseTempSensor(1019)
+					if err != nil {
+						m.lo.Error("bottom buffer parsing", "error", err)
+					} else {
+						if isValueChanged(m.bottomBufferTemp.currentTemp, bottomBufferTemp.currentTemp) {
+							sensorPublish(m.lo, ctx, sensorBufferBottomTemp, float32(*bottomBufferTemp.currentTemp)/10)
+						}
+						if isValueChanged(m.bottomBufferTemp.targetTemp, bottomBufferTemp.targetTemp) {
+							sensorPublish(m.lo, ctx, sensorBufferBottomTargetTemp, float32(*bottomBufferTemp.targetTemp))
+						}
+						m.bottomBufferTemp = bottomBufferTemp
+					}
 				}
 			case <-ctx.Done():
 				return
@@ -198,13 +227,13 @@ func (m *emodul) Start(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Minute)
 	for {
 		// fetch data
-		err := m.FetchData()
+		err := m.fetchData()
 		if err != nil {
 			werr := fmt.Errorf("fetch error %w", err)
 			m.errors <- werr
 			m.lo.Error("emodul", "error", werr)
 		} else {
-			m.update <- struct{}{}
+			m.dataUpdate <- struct{}{}
 		}
 
 		// wait next tick
@@ -216,19 +245,35 @@ func (m *emodul) Start(ctx context.Context) {
 	}
 }
 
-func (m *emodul) FetchData() error {
+func (m *emodul) fetchData() error {
+	// fetch module data
 	var url = m.params.ApiUrl + "/users/" + strconv.FormatInt(int64(m.params.UserId), 10) + "/modules/" + m.params.ModuleHash
 	body, err := m.Get(url, func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
 	}, httpclient.HttpRespCallback)
-
-	// Parse the response and write to the storage
+	if err != nil {
+		return fmt.Errorf("http post error: %w", err)
+	}
 	data, err := oj.Parse(body)
 	if err != nil {
 		return err
 	}
-	m.data.Write(data)
+	m.moduleData.Write(data)
 
+	// fetch menu data
+	body, err = m.Get(m.params.FrontendUrl+"/frontend/menu_main?module_index="+strconv.Itoa(m.params.ModuleIndex), func(req *httpclient.Request) {
+		m.params.SetCookies(req)
+	}, func(resp *http.Response) {
+		m.params.SaveCookies(resp)
+	})
+	if err != nil {
+		return fmt.Errorf("http get error: %w", err)
+	}
+	data, err = oj.Parse(body)
+	if err != nil {
+		return err
+	}
+	m.menuData.Write(data)
 	return nil
 }
 
@@ -259,6 +304,24 @@ func (m *emodul) BoilerDamping() error {
 	return m.sendControlData(req, "BoilerDamping")
 }
 
+func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp uint) error {
+	var device BoilerDevice
+	switch location {
+	case BUFFER_TOP:
+		device = TopBufferTemp
+	case BUFFER_BOTTOM:
+		device = BottomBufferTemp
+	default:
+		return fmt.Errorf("Unknown buffer target temp reading location. Arg: %v", location)
+	}
+	req := HttpControlData{
+		Ido:         device,
+		Params:      temp,
+		ModuleIndex: m.params.ModuleIndex,
+	}
+	return m.sendControlData(req, "BoilerDamping")
+}
+
 func (m *emodul) sendControlData(req HttpControlData, prefix string) error {
 	data, err := json.Marshal([]HttpControlData{req})
 	if err != nil {
@@ -282,54 +345,12 @@ func (m *emodul) sendControlData(req HttpControlData, prefix string) error {
 	return nil
 }
 
-func (m *emodul) DataUpdated() chan struct{} {
-	return m.update
-}
-
 func (m *emodul) Get(url string, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
 	return httpclient.Get(m.http, url, setReq, getResp)
 }
 
 func (m *emodul) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
 	return httpclient.Post(m.http, url, data, setReq, getResp)
-}
-
-func (m *emodul) GetObject(path string) any {
-	dp := jp.MustParseString(path)
-	result := dp.Get(m.data.Get())
-	if len(result) > 0 {
-		return result[0]
-	}
-	return nil
-}
-
-func (m *emodul) GetArray(path string) []any {
-	dp := jp.MustParseString(path)
-	return dp.Get(m.data.Get())
-}
-
-func (m *emodul) GetInt64(path string, errors *Errors) *int64 {
-	val, ok := m.GetObject(path).(int64)
-	if !ok {
-		*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
-	}
-	return &val
-}
-
-func (m *emodul) GetString(path string, errors *Errors) *string {
-	val, ok := m.GetObject(path).(string)
-	if !ok {
-		*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
-	}
-	return &val
-}
-
-func (m *emodul) GetBool(path string, errors *Errors) *bool {
-	val, ok := m.GetObject(path).(bool)
-	if !ok {
-		*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
-	}
-	return &val
 }
 
 func isValueChanged(oldValue *int64, newValue *int64) bool {

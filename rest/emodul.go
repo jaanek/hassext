@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/jaanek/hassext/emodul"
@@ -28,15 +29,59 @@ func HandleBoilerDamping(rest *Rest) http.HandlerFunc {
 	}
 }
 
-func HandleWorkingMode(rest *Rest) http.HandlerFunc {
+func HandleSetBufferTargetTemps(rest *Rest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req = struct {
-			Mode string `json:"mode"`
+			TopTemp    int `json:"temp-top"`
+			BottomTemp int `json:"temp-bottom"`
 		}{}
 		err := HttpBind(r.Body, &req)
 		if err != nil {
 			HttpError(rest.lo, w, r, http.StatusBadRequest, err)
 			return
+		}
+
+		// validate input
+		if req.TopTemp < 10 || req.TopTemp > 70 {
+			HttpError(rest.lo, w, r, http.StatusBadRequest, fmt.Errorf("Invalid top temp value: %v", req.TopTemp))
+			return
+		}
+		if req.BottomTemp < 10 || req.BottomTemp > 70 {
+			HttpError(rest.lo, w, r, http.StatusBadRequest, fmt.Errorf("Invalid bottom temp value: %v", req.BottomTemp))
+			return
+		}
+
+		// set temperature targets
+		err = rest.em.SetBufferTargetTemp(emodul.BUFFER_BOTTOM, uint(req.BottomTemp))
+		if err != nil {
+			HttpError(rest.lo, w, r, http.StatusInternalServerError, err)
+			return
+		}
+		err = rest.em.SetBufferTargetTemp(emodul.BUFFER_TOP, uint(req.TopTemp))
+		if err != nil {
+			HttpError(rest.lo, w, r, http.StatusInternalServerError, err)
+			return
+		}
+		HttpJson(rest.lo, w, r, http.StatusOK, map[string]interface{}{})
+	}
+}
+
+func HandleWorkingMode(rest *Rest) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req = struct {
+			Mode       string `json:"mode"`
+			IgnoreWhen string `json:"ignore_when"`
+		}{}
+		err := HttpBind(r.Body, &req)
+		if err != nil {
+			HttpError(rest.lo, w, r, http.StatusBadRequest, err)
+			return
+		}
+
+		// check if we need to ignore the request if boiler is in certain mode
+		switch req.IgnoreWhen {
+		case "summer_mode":
+
 		}
 
 		// parse the mode

@@ -46,6 +46,7 @@ func NewRouter(rest *Rest) http.Handler {
 	r.Methods(http.MethodPost).Handler("/boiler-fireup", HandleBoilerFireUp(rest))
 	r.Methods(http.MethodPost).Handler("/boiler-damping", HandleBoilerDamping(rest))
 	r.Methods(http.MethodPost).Handler("/working-mode", HandleWorkingMode(rest))
+	r.Methods(http.MethodPost).Handler("/set-buffer-target-temps", HandleSetBufferTargetTemps(rest))
 
 	// common middleware's
 	// n := negroni.Classic() // Includes some default middlewares

@@ -7,4 +7,10 @@ var (
 		Model:        "Temperature sensor",
 		Name:         "Floor water main valve",
 	}
+	DeviceBoilerBufferTank = SensorMqttConfigDevice{
+		Identifiers:  []string{"hassext_boiler_buffer_tank"},
+		Manufacturer: "Katel",
+		Model:        "",
+		Name:         "Boiler buffer tank",
+	}
 )

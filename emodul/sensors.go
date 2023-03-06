@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/mq"
 	"github.com/zerodha/logf"
 )
@@ -40,37 +40,66 @@ type BuiltInValve struct {
 	setTemp           *int64
 }
 
-type Errors []error
-
-func (list Errors) Error() string {
-	errs := make([]string, 0, len(list))
-	for _, e := range list {
-		errs = append(errs, e.Error())
-	}
-	return strings.Join(errs, ",")
+type TemperatureSensor struct {
+	currentTemp *int64
+	targetTemp  *int64
 }
 
 func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
 	// check if we have a valve with specified id
 	parentPath := fmt.Sprintf("$.tiles[?(@.id == %v)].params", id)
-	obj := m.GetObject(parentPath)
+	obj := m.moduleData.GetObject(parentPath)
 	if obj == nil {
 		return nil, fmt.Errorf(fmt.Sprintf("Valve with id %q not found", id))
 	}
-	errs := Errors{}
+	errs := data.Errors{}
 	valve := &BuiltInValve{
-		description:       m.GetString(parentPath+".description", &errs),
-		valveNumber:       m.GetInt64(parentPath+".valveNumber", &errs),
-		workingStatus:     m.GetBool(parentPath+".workingStatus", &errs),
-		openingPercentage: m.GetInt64(parentPath+".openingPercentage", &errs),
-		currentTemp:       m.GetInt64(parentPath+".currentTemp", &errs),
-		returnTemp:        m.GetInt64(parentPath+".returnTemp", &errs),
-		setTemp:           m.GetInt64(parentPath+".setTemp", &errs),
+		description:       m.moduleData.GetString(parentPath+".description", &errs),
+		valveNumber:       m.moduleData.GetInt64(parentPath+".valveNumber", &errs),
+		workingStatus:     m.moduleData.GetBool(parentPath+".workingStatus", &errs),
+		openingPercentage: m.moduleData.GetInt64(parentPath+".openingPercentage", &errs),
+		currentTemp:       m.moduleData.GetInt64(parentPath+".currentTemp", &errs),
+		returnTemp:        m.moduleData.GetInt64(parentPath+".returnTemp", &errs),
+		setTemp:           m.moduleData.GetInt64(parentPath+".setTemp", &errs),
 	}
 	if len(errs) > 0 {
 		return valve, errs
 	}
 	return valve, nil
+}
+
+func (m *emodul) ParseTempSensor(id uint) (*TemperatureSensor, error) {
+	var sensor TemperatureSensor
+	var errors data.Errors
+
+	// get sensor data
+	parentPath := fmt.Sprintf("$.tiles[?(@.id == %v)]", id)
+	tileData := m.moduleData.GetObject(parentPath)
+	if tileData == nil {
+		return nil, fmt.Errorf("Tile not found! id: %v", id)
+	}
+	tile := data.Data{Value: tileData}
+	sensor.currentTemp = tile.GetInt64("$.params.value", &errors)
+	if errors.HasAny() {
+		return nil, errors.FirstError()
+	}
+	menuId := tile.GetInt64("$.menuId", &errors)
+	if errors.HasAny() {
+		return nil, errors.FirstError()
+	}
+
+	// get menu data - sensor settings
+	parentPath = fmt.Sprintf("$.elements[?(@.id == %v)]", *menuId)
+	menuData := m.menuData.GetObject(parentPath)
+	if menuData == nil {
+		return nil, fmt.Errorf("Menu not found! id: %v", id)
+	}
+	menu := data.Data{Value: menuData}
+	sensor.targetTemp = menu.GetInt64("$.params.value", &errors)
+	if errors.HasAny() {
+		return nil, errors.FirstError()
+	}
+	return &sensor, nil
 }
 
 type Sensor interface {
