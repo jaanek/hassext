@@ -307,15 +307,18 @@ func (m *emodul) BoilerDamping() error {
 
 func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp uint, waitDone bool) error {
 	var device BoilerDevice
+	var locationName string
 	switch location {
 	case BUFFER_TOP:
 		device = TopBufferTemp
+		locationName = "top"
 	case BUFFER_BOTTOM:
 		device = BottomBufferTemp
+		locationName = "bottom"
 	default:
 		return fmt.Errorf("Unknown buffer target temp reading location. Arg: %v", location)
 	}
-	m.lo.Info("Setting buffer target temp", "device", device, "params", temp)
+	m.lo.Info("Setting buffer target temp", "location", locationName, "device", device, "params", temp)
 	req := HttpControlData{
 		Ido:         device,
 		Params:      temp,
@@ -329,21 +332,26 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 	// wait here until target temp takes effect, otherwise another call to the same function overrides the current one
 	if waitDone {
 		ticker := time.NewTicker(10 * time.Second)
-		ctxT, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		ctxT, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 	loop:
 		for {
-			m.lo.Info("Waiting set-buffer-target-temp to take effect ...")
-			m.fetchData()
+			m.lo.Info("Waiting set-buffer-target-temp to take effect ...", "location", locationName)
+			err := m.fetchData()
+			if err != nil {
+				return err
+			}
 			time.Sleep(2 * time.Second)
 			t := int64(temp)
 			switch location {
 			case BUFFER_TOP:
-				if m.topBufferTemp != nil && isEqualInt64(m.topBufferTemp.targetTemp, &t) {
+				m.lo.Info("Buffer-target-temp.", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
+				if isEqualInt64(m.topBufferTemp.targetTemp, &t) {
 					break loop
 				}
 			case BUFFER_BOTTOM:
-				if m.bottomBufferTemp != nil && isEqualInt64(m.bottomBufferTemp.targetTemp, &t) {
+				m.lo.Info("Buffer-target-temp.", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
+				if isEqualInt64(m.bottomBufferTemp.targetTemp, &t) {
 					break loop
 				}
 			}
@@ -355,7 +363,12 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 				break loop
 			}
 		}
-		m.lo.Info("Done setting buffer-target-temp.")
+		switch location {
+		case BUFFER_TOP:
+			m.lo.Info("Done setting buffer-target-temp.", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
+		case BUFFER_BOTTOM:
+			m.lo.Info("Done setting buffer-target-temp.", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
+		}
 	}
 	return nil
 }
