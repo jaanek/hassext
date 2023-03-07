@@ -40,6 +40,7 @@ func HandleSetBufferTargetTemps(rest *Rest) http.HandlerFunc {
 			HttpError(rest.lo, w, r, http.StatusBadRequest, err)
 			return
 		}
+		rest.lo.Info("set buffer target temps", "request", req)
 
 		// validate input
 		if req.TopTemp < 10 || req.TopTemp > 70 {
@@ -52,12 +53,7 @@ func HandleSetBufferTargetTemps(rest *Rest) http.HandlerFunc {
 		}
 
 		// set temperature targets
-		err = rest.em.SetBufferTargetTemp(emodul.BUFFER_BOTTOM, uint(req.BottomTemp))
-		if err != nil {
-			HttpError(rest.lo, w, r, http.StatusInternalServerError, err)
-			return
-		}
-		err = rest.em.SetBufferTargetTemp(emodul.BUFFER_TOP, uint(req.TopTemp))
+		err = rest.em.SetBufferTargetTemps(uint(req.TopTemp), uint(req.BottomTemp), true)
 		if err != nil {
 			HttpError(rest.lo, w, r, http.StatusInternalServerError, err)
 			return

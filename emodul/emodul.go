@@ -21,7 +21,8 @@ type EModul interface {
 	SetWorkingMode(mode WorkingMode) error
 	BoilerFireUp() error
 	BoilerDamping() error
-	SetBufferTargetTemp(BufferTempReadingLocation, uint) error
+	SetBufferTargetTemp(BufferTempReadingLocation, uint, bool) error
+	SetBufferTargetTemps(uint, uint, bool) error
 	ParseValve(uint) (*BuiltInValve, error)
 }
 
@@ -191,7 +192,7 @@ func (m *emodul) Start(ctx context.Context) {
 					}
 					m.mainValve = v
 
-					// get temp sensor settings from menu data
+					// parse buffer tank temperatures
 					topBufferTemp, err := m.ParseTempSensor(1018)
 					if err != nil {
 						m.lo.Error("top buffer parsing", "error", err)
@@ -304,7 +305,7 @@ func (m *emodul) BoilerDamping() error {
 	return m.sendControlData(req, "BoilerDamping")
 }
 
-func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp uint) error {
+func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp uint, waitDone bool) error {
 	var device BoilerDevice
 	switch location {
 	case BUFFER_TOP:
@@ -314,12 +315,72 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 	default:
 		return fmt.Errorf("Unknown buffer target temp reading location. Arg: %v", location)
 	}
+	m.lo.Info("Setting buffer target temp", "device", device, "params", temp)
 	req := HttpControlData{
 		Ido:         device,
 		Params:      temp,
 		ModuleIndex: m.params.ModuleIndex,
 	}
-	return m.sendControlData(req, "BoilerDamping")
+	err := m.sendControlData(req, "SetBufferTargetTemp")
+	if err != nil {
+		return err
+	}
+
+	// wait here until target temp takes effect, otherwise another call to the same function overrides the current one
+	if waitDone {
+		ticker := time.NewTicker(10 * time.Second)
+		ctxT, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
+	loop:
+		for {
+			m.lo.Info("Waiting set-buffer-target-temp to take effect ...")
+			m.fetchData()
+			time.Sleep(2 * time.Second)
+			t := int64(temp)
+			switch location {
+			case BUFFER_TOP:
+				if m.topBufferTemp != nil && isEqualInt64(m.topBufferTemp.targetTemp, &t) {
+					break loop
+				}
+			case BUFFER_BOTTOM:
+				if m.bottomBufferTemp != nil && isEqualInt64(m.bottomBufferTemp.targetTemp, &t) {
+					break loop
+				}
+			}
+
+			select {
+			case <-ticker.C:
+				continue
+			case <-ctxT.Done():
+				break loop
+			}
+		}
+		m.lo.Info("Done setting buffer-target-temp.")
+	}
+	return nil
+}
+
+func (m *emodul) SetBufferTargetTemps(top uint, bottom uint, waitDone bool) error {
+	if *m.bottomBufferTemp.min <= int64(bottom) && *m.bottomBufferTemp.max >= int64(bottom) {
+		err := m.SetBufferTargetTemp(BUFFER_BOTTOM, bottom, waitDone)
+		if err != nil {
+			return err
+		}
+		err = m.SetBufferTargetTemp(BUFFER_TOP, top, waitDone)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := m.SetBufferTargetTemp(BUFFER_TOP, top, waitDone)
+		if err != nil {
+			return err
+		}
+		err = m.SetBufferTargetTemp(BUFFER_BOTTOM, bottom, waitDone)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *emodul) sendControlData(req HttpControlData, prefix string) error {
@@ -361,6 +422,19 @@ func isValueChanged(oldValue *int64, newValue *int64) bool {
 		return true
 	}
 	if *oldValue != *newValue {
+		return true
+	}
+	return false
+}
+
+func isEqualInt64(oldValue *int64, newValue *int64) bool {
+	if (newValue == nil && oldValue != nil) || (oldValue == nil && newValue != nil) {
+		return false
+	}
+	if newValue == nil && oldValue == nil {
+		return true
+	}
+	if *oldValue == *newValue {
 		return true
 	}
 	return false

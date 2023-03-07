@@ -43,6 +43,8 @@ type BuiltInValve struct {
 type TemperatureSensor struct {
 	currentTemp *int64
 	targetTemp  *int64
+	min         *int64
+	max         *int64
 }
 
 func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
@@ -95,7 +97,10 @@ func (m *emodul) ParseTempSensor(id uint) (*TemperatureSensor, error) {
 		return nil, fmt.Errorf("Menu not found! id: %v", id)
 	}
 	menu := data.Data{Value: menuData}
+	// parse target, min, max
 	sensor.targetTemp = menu.GetInt64("$.params.value", &errors)
+	sensor.min = menu.GetInt64("$.params.min", &errors)
+	sensor.max = menu.GetInt64("$.params.max", &errors)
 	if errors.HasAny() {
 		return nil, errors.FirstError()
 	}
