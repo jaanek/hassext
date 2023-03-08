@@ -16,7 +16,12 @@ import (
 type HomeAssistant interface {
 	Start(context.Context)
 	SetInputDateTime(string, time.Time, DateTimeOption) error
+	SetInputBoolean(string, BooleanAction) error
 	Automation(string, AutomationAction) error
+	Climate(string, ClimateAction) error
+	ClimateSetHvacMode(string, ClimateHvacMode) error
+	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
+	Notify(string, string, string) error
 	GetNordpoolPrices() NordpoolPrices
 }
 
@@ -168,6 +173,12 @@ func (m *homeassistant) updateData() error {
 	if err != nil {
 		return err
 	}
+
+	// set the heating allowed
+	err = m.SetInputBoolean("input_boolean.katel_heating_allowed", BOOLEAN_TURN_ON)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -211,6 +222,28 @@ func (m *homeassistant) SetInputDateTime(entityId string, time time.Time, format
 	return nil
 }
 
+type BooleanAction string
+
+const (
+	BOOLEAN_TOGGLE   BooleanAction = "toggle"
+	BOOLEAN_TURN_ON  BooleanAction = "turn_on"
+	BOOLEAN_TURN_OFF BooleanAction = "turn_off"
+)
+
+func (m *homeassistant) SetInputBoolean(entityId string, action BooleanAction) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+	}{
+		EntityId: entityId,
+	}
+
+	err := m.callService("input_boolean", string(action), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 type AutomationAction string
 
 const (
@@ -230,6 +263,97 @@ func (m *homeassistant) Automation(entityId string, action AutomationAction) err
 	}
 
 	err := m.callService("automation", string(action), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type ClimateAction string
+
+const (
+	CLIMATE_TURN_ON  ClimateAction = "turn_on"
+	CLIMATE_TURN_OFF ClimateAction = "turn_off"
+)
+
+func (m *homeassistant) Climate(entityId string, action ClimateAction) error {
+	// termostats: climate.elutuba
+	// heating pumps: climate.altherma
+	var req = struct {
+		EntityId string `json:"entity_id"`
+	}{
+		EntityId: entityId,
+	}
+
+	err := m.callService("climate", string(action), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type ClimateHvacMode string
+
+const (
+	CLIMATE_OFF  ClimateHvacMode = "off"
+	CLIMATE_HEAT ClimateHvacMode = "heat"
+)
+
+func (m *homeassistant) ClimateSetHvacMode(entityId string, mode ClimateHvacMode) error {
+	// heating pumps: climate.altherma
+	var req = struct {
+		EntityId string `json:"entity_id"`
+		HvacMode string `json:"hvac_mode"`
+	}{
+		EntityId: entityId,
+		HvacMode: string(mode),
+	}
+
+	err := m.callService("climate", "set_hvac_mode", req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *homeassistant) ClimateSetTemperature(entityId string, temp float32, mode *ClimateHvacMode) error {
+	// heating pumps: climate.altherma
+	var req = struct {
+		EntityId    string  `json:"entity_id"`
+		Temperature float32 `json:"temperature"`
+		HvacMode    string  `json:"hvac_mode,omitempty"`
+	}{
+		EntityId:    entityId,
+		Temperature: temp,
+	}
+	if mode != nil {
+		req.HvacMode = string(*mode)
+	}
+
+	// validate params
+	if temp > 100 {
+		return fmt.Errorf("Invalid temp value! Max 100 allowed. Provided value: %v", temp)
+	}
+
+	err := m.callService("climate", "set_temperature", req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *homeassistant) Notify(entityId string, title string, msg string) error {
+	// persistent_notification
+	// mobile_app_ac2003
+	var req = struct {
+		Title   string `json:"title"`
+		Message string `json:"message"`
+	}{
+		Title:   title,
+		Message: msg,
+	}
+
+	err := m.callService("notify", entityId, req)
 	if err != nil {
 		return err
 	}
