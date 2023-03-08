@@ -15,13 +15,13 @@ import (
 
 type HomeAssistant interface {
 	Start(context.Context)
+	Notify(string, string, string) error
 	SetInputDateTime(string, time.Time, DateTimeOption) error
 	SetInputBoolean(string, BooleanAction) error
 	Automation(string, AutomationAction) error
 	Climate(string, ClimateAction) error
 	ClimateSetHvacMode(string, ClimateHvacMode) error
 	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
-	Notify(string, string, string) error
 	Switch(string, SwitchAction) error
 	GetNordpoolPrices() NordpoolPrices
 }
@@ -393,14 +393,19 @@ func (m *homeassistant) callService(domain string, service string, input any) er
 		return err
 	}
 	m.lo.Info("homeassistant callService", "request", params)
+	var respErr error
 	body, err := m.Post(m.params.ApiUrl+"/services/"+domain+"/"+service, params, func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
-	}, httpclient.HttpRespCallback)
-	if err != nil {
-		return fmt.Errorf("http post error: %w", err)
+	}, func(resp *http.Response) {
+		// https://developers.home-assistant.io/docs/api/rest/
+		var ok = resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated
+		if !ok {
+			respErr = fmt.Errorf("HomeAssistant rest callService failed! Response code: %v, status: %v", resp.StatusCode, resp.Status)
+		}
+	})
+	if err != nil || respErr != nil {
+		return fmt.Errorf("http post error: %w, %w, body: %v", err, respErr, string(body))
 	}
-
-	// validate response
 	m.lo.Info("callService", "response", string(body))
 	return nil
 }
