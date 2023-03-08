@@ -18,3 +18,7 @@ jwtSecret = ""
 
 [snapcast]
 apiUrl = "https://snapcast.oja.me"
+
+[homeassistant]
+apiUrl = "https://hass.oja.me/api"
+token = ""

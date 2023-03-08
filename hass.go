@@ -7,6 +7,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/hub"
 	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/rest"
@@ -25,6 +26,7 @@ type HassExt struct {
 	Snapcast snapcast.Snapcast
 	Rest     *rest.Rest
 	Sound    sound.Sound
+	HA       homeassistant.HomeAssistant
 }
 
 // init home assistant integration
@@ -54,6 +56,10 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		ApiUrl: ko.String("snapcast.apiUrl"),
 	})
 	sound := sound.New(lo, hub, sc)
+	ha := homeassistant.NewHomeAssistantClient(lo, &homeassistant.HttpClientParams{
+		ApiUrl: ko.String("homeassistant.apiUrl"),
+		Token:  ko.String("homeassistant.token"),
+	})
 
 	return &HassExt{
 		opts:     opts,
@@ -64,6 +70,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		Snapcast: sc,
 		Rest:     r,
 		Sound:    sound,
+		HA:       ha,
 	}, nil
 }
 
@@ -78,14 +85,13 @@ func (h *HassExt) Run(ctx context.Context) error {
 		h.Sound.Init()
 	}()
 
-	// Start rest api
-	go func() {
-		h.Rest.Start(ctx)
-	}()
-
 	// Start Snapcast
 	go func() {
 		h.Snapcast.Run(ctx)
+	}()
+
+	go func() {
+		h.HA.Start(ctx)
 	}()
 
 	// connect to the mq so that messages start flowing to the hub
@@ -101,6 +107,11 @@ func (h *HassExt) Run(ctx context.Context) error {
 	}
 	go func() {
 		h.Emodul.Start(ctx)
+	}()
+
+	// Start rest server api
+	go func() {
+		h.Rest.Start(ctx)
 	}()
 
 	return nil

@@ -318,7 +318,7 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 	default:
 		return fmt.Errorf("Unknown buffer target temp reading location. Arg: %v", location)
 	}
-	m.lo.Info("Setting buffer target temp", "location", locationName, "device", device, "params", temp)
+	m.lo.Info("SetBufferTargetTemp setting buffer target temp", "location", locationName, "device", device, "params", temp)
 	req := HttpControlData{
 		Ido:         device,
 		Params:      temp,
@@ -336,7 +336,7 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 		defer cancel()
 	loop:
 		for {
-			m.lo.Info("Waiting set-buffer-target-temp to take effect ...", "location", locationName)
+			m.lo.Info("Waiting SetBufferTargetTemp to take effect ...", "location", locationName)
 			err := m.fetchData()
 			if err != nil {
 				return err
@@ -345,15 +345,15 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 			t := int64(temp)
 			switch location {
 			case BUFFER_TOP:
-				m.lo.Info("Buffer-target-temp.", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
 				if isEqualInt64(m.topBufferTemp.targetTemp, &t) {
 					break loop
 				}
+				m.lo.Info("Waiting SetBufferTargetTemp", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
 			case BUFFER_BOTTOM:
-				m.lo.Info("Buffer-target-temp.", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
 				if isEqualInt64(m.bottomBufferTemp.targetTemp, &t) {
 					break loop
 				}
+				m.lo.Info("Waiting SetBufferTargetTemp", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
 			}
 
 			select {
@@ -365,9 +365,9 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 		}
 		switch location {
 		case BUFFER_TOP:
-			m.lo.Info("Done setting buffer-target-temp.", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
+			m.lo.Info("Done SetBufferTargetTemp", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
 		case BUFFER_BOTTOM:
-			m.lo.Info("Done setting buffer-target-temp.", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
+			m.lo.Info("Done SetBufferTargetTemp", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
 		}
 	}
 	return nil
