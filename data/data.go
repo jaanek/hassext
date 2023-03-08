@@ -38,26 +38,37 @@ func (d *Data) GetArray(path string) []any {
 	return dp.Get(d.Get())
 }
 
-func (d *Data) GetInt64(path string, errors *Errors) *int64 {
+func (d *Data) GetInt64(path string, errors *Errors) int64 {
 	val, ok := d.GetObject(path).(int64)
 	if !ok {
 		if errors != nil {
 			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
 		}
-		return nil
+		return 0
 	}
-	return &val
+	return val
 }
 
-func (d *Data) GetString(path string, errors *Errors) *string {
+func (d *Data) GetFloat64(path string, errors *Errors) float64 {
+	val, ok := d.GetObject(path).(float64)
+	if !ok {
+		if errors != nil {
+			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
+		}
+		return 0
+	}
+	return val
+}
+
+func (d *Data) GetString(path string, errors *Errors) string {
 	val, ok := d.GetObject(path).(string)
 	if !ok {
 		if errors != nil {
 			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
 		}
-		return nil
+		return ""
 	}
-	return &val
+	return val
 }
 
 func (d *Data) GetBool(path string, errors *Errors) *bool {

@@ -23,8 +23,8 @@ func RpcParseResult(body []byte) (result *data.Data, error error) {
 		return
 	}
 	errMsg := result.GetString("$.error.message", nil)
-	if errMsg != nil {
-		error = fmt.Errorf("%s", *errMsg)
+	if errMsg != "" {
+		error = fmt.Errorf("%s", errMsg)
 	}
 	return
 }

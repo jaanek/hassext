@@ -108,10 +108,10 @@ func (s *snapcast) GroupGetStatus(groupId string) (*Group, error) {
 	}
 	s.lo.Info("GroupGetStatus success", "result", string(body))
 	return &Group{
-		Id:       *id,
-		Name:     *name,
+		Id:       id,
+		Name:     name,
 		Muted:    *muted,
-		StreamId: *streamId,
+		StreamId: streamId,
 	}, nil
 }
 
@@ -149,7 +149,7 @@ func (s *snapcast) ClientGetStatus(clientId string) (*Client, error) {
 		Id:        clientId,
 		Connected: *connected,
 		Muted:     *muted,
-		Volume:    *volume,
+		Volume:    volume,
 	}, nil
 }
 
@@ -330,12 +330,12 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 				// s.lo.Info("Group", "id", *id, "stream_id", *streamId, "clientIds", clientIds, "muted", clientMutedArr, "volume", clientVolumeArr)
 				// set group
 				group := &Group{
-					Id:       *id,
-					Name:     *groupName,
+					Id:       id,
+					Name:     groupName,
 					Muted:    *groupMuted,
-					StreamId: *streamId,
+					StreamId: streamId,
 				}
-				s.Status.Groups[*id] = group
+				s.Status.Groups[id] = group
 				// s.lo.Info("Parsed", "group", group)
 
 				// set clients

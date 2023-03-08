@@ -182,13 +182,13 @@ func (m *emodul) Start(ctx context.Context) {
 						continue
 					}
 					if isValueChanged(m.mainValve.currentTemp, v.currentTemp) {
-						sensorPublish(m.lo, ctx, mvTempSensor, float32(*v.currentTemp)/10)
+						sensorPublish(m.lo, ctx, mvTempSensor, float32(v.currentTemp)/10)
 					}
 					if isValueChanged(m.mainValve.setTemp, v.setTemp) {
-						sensorPublish(m.lo, ctx, mvSetTempSensor, float32(*v.setTemp))
+						sensorPublish(m.lo, ctx, mvSetTempSensor, float32(v.setTemp))
 					}
 					if isValueChanged(m.mainValve.returnTemp, v.returnTemp) {
-						sensorPublish(m.lo, ctx, mvReturnTempSensor, float32(*v.returnTemp))
+						sensorPublish(m.lo, ctx, mvReturnTempSensor, float32(v.returnTemp))
 					}
 					m.mainValve = v
 
@@ -198,10 +198,10 @@ func (m *emodul) Start(ctx context.Context) {
 						m.lo.Error("top buffer parsing", "error", err)
 					} else {
 						if isValueChanged(m.topBufferTemp.currentTemp, topBufferTemp.currentTemp) {
-							sensorPublish(m.lo, ctx, sensorBufferTopTemp, float32(*topBufferTemp.currentTemp)/10)
+							sensorPublish(m.lo, ctx, sensorBufferTopTemp, float32(topBufferTemp.currentTemp)/10)
 						}
 						if isValueChanged(m.topBufferTemp.targetTemp, topBufferTemp.targetTemp) {
-							sensorPublish(m.lo, ctx, sensorBuffeTopTargetTemp, float32(*topBufferTemp.targetTemp))
+							sensorPublish(m.lo, ctx, sensorBuffeTopTargetTemp, float32(topBufferTemp.targetTemp))
 						}
 						m.topBufferTemp = topBufferTemp
 					}
@@ -210,10 +210,10 @@ func (m *emodul) Start(ctx context.Context) {
 						m.lo.Error("bottom buffer parsing", "error", err)
 					} else {
 						if isValueChanged(m.bottomBufferTemp.currentTemp, bottomBufferTemp.currentTemp) {
-							sensorPublish(m.lo, ctx, sensorBufferBottomTemp, float32(*bottomBufferTemp.currentTemp)/10)
+							sensorPublish(m.lo, ctx, sensorBufferBottomTemp, float32(bottomBufferTemp.currentTemp)/10)
 						}
 						if isValueChanged(m.bottomBufferTemp.targetTemp, bottomBufferTemp.targetTemp) {
-							sensorPublish(m.lo, ctx, sensorBufferBottomTargetTemp, float32(*bottomBufferTemp.targetTemp))
+							sensorPublish(m.lo, ctx, sensorBufferBottomTargetTemp, float32(bottomBufferTemp.targetTemp))
 						}
 						m.bottomBufferTemp = bottomBufferTemp
 					}
@@ -345,15 +345,15 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 			t := int64(temp)
 			switch location {
 			case BUFFER_TOP:
-				if isEqualInt64(m.topBufferTemp.targetTemp, &t) {
+				if isEqualInt64(m.topBufferTemp.targetTemp, t) {
 					break loop
 				}
-				m.lo.Info("Waiting SetBufferTargetTemp", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
+				m.lo.Info("Waiting SetBufferTargetTemp", "location", locationName, "target temp", m.topBufferTemp.targetTemp, "param", temp)
 			case BUFFER_BOTTOM:
-				if isEqualInt64(m.bottomBufferTemp.targetTemp, &t) {
+				if isEqualInt64(m.bottomBufferTemp.targetTemp, t) {
 					break loop
 				}
-				m.lo.Info("Waiting SetBufferTargetTemp", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
+				m.lo.Info("Waiting SetBufferTargetTemp", "location", locationName, "target temp", m.bottomBufferTemp.targetTemp, "param", temp)
 			}
 
 			select {
@@ -365,16 +365,16 @@ func (m *emodul) SetBufferTargetTemp(location BufferTempReadingLocation, temp ui
 		}
 		switch location {
 		case BUFFER_TOP:
-			m.lo.Info("Done SetBufferTargetTemp", "location", locationName, "target temp", *m.topBufferTemp.targetTemp, "param", temp)
+			m.lo.Info("Done SetBufferTargetTemp", "location", locationName, "target temp", m.topBufferTemp.targetTemp, "param", temp)
 		case BUFFER_BOTTOM:
-			m.lo.Info("Done SetBufferTargetTemp", "location", locationName, "target temp", *m.bottomBufferTemp.targetTemp, "param", temp)
+			m.lo.Info("Done SetBufferTargetTemp", "location", locationName, "target temp", m.bottomBufferTemp.targetTemp, "param", temp)
 		}
 	}
 	return nil
 }
 
 func (m *emodul) SetBufferTargetTemps(top uint, bottom uint, waitDone bool) error {
-	if *m.bottomBufferTemp.min <= int64(bottom) && *m.bottomBufferTemp.max >= int64(bottom) {
+	if m.bottomBufferTemp.min <= int64(bottom) && m.bottomBufferTemp.max >= int64(bottom) {
 		err := m.SetBufferTargetTemp(BUFFER_BOTTOM, bottom, waitDone)
 		if err != nil {
 			return err
@@ -427,27 +427,15 @@ func (m *emodul) Post(url string, data []byte, setReq func(req *httpclient.Reque
 	return httpclient.Post(m.http, url, data, setReq, getResp)
 }
 
-func isValueChanged(oldValue *int64, newValue *int64) bool {
-	if newValue == nil {
-		return false
-	}
-	if oldValue == nil {
-		return true
-	}
-	if *oldValue != *newValue {
+func isValueChanged(oldValue int64, newValue int64) bool {
+	if oldValue != newValue {
 		return true
 	}
 	return false
 }
 
-func isEqualInt64(oldValue *int64, newValue *int64) bool {
-	if (newValue == nil && oldValue != nil) || (oldValue == nil && newValue != nil) {
-		return false
-	}
-	if newValue == nil && oldValue == nil {
-		return true
-	}
-	if *oldValue == *newValue {
+func isEqualInt64(oldValue int64, newValue int64) bool {
+	if oldValue == newValue {
 		return true
 	}
 	return false

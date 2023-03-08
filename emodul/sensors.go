@@ -31,20 +31,20 @@ type SensorMqttConfigDevice struct {
 }
 
 type BuiltInValve struct {
-	description       *string
-	valveNumber       *int64
+	description       string
+	valveNumber       int64
 	workingStatus     *bool
-	openingPercentage *int64
-	currentTemp       *int64
-	returnTemp        *int64
-	setTemp           *int64
+	openingPercentage int64
+	currentTemp       int64
+	returnTemp        int64
+	setTemp           int64
 }
 
 type TemperatureSensor struct {
-	currentTemp *int64
-	targetTemp  *int64
-	min         *int64
-	max         *int64
+	currentTemp int64
+	targetTemp  int64
+	min         int64
+	max         int64
 }
 
 func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
@@ -91,7 +91,7 @@ func (m *emodul) ParseTempSensor(id uint) (*TemperatureSensor, error) {
 	}
 
 	// get menu data - sensor settings
-	parentPath = fmt.Sprintf("$.elements[?(@.id == %v)]", *menuId)
+	parentPath = fmt.Sprintf("$.elements[?(@.id == %v)]", menuId)
 	menuData := m.menuData.GetObject(parentPath)
 	if menuData == nil {
 		return nil, fmt.Errorf("Menu not found! id: %v", id)
