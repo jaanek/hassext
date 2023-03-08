@@ -22,6 +22,7 @@ type HomeAssistant interface {
 	ClimateSetHvacMode(string, ClimateHvacMode) error
 	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
 	Notify(string, string, string) error
+	Switch(string, SwitchAction) error
 	GetNordpoolPrices() NordpoolPrices
 }
 
@@ -354,6 +355,28 @@ func (m *homeassistant) Notify(entityId string, title string, msg string) error 
 	}
 
 	err := m.callService("notify", entityId, req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type SwitchAction string
+
+const (
+	SWITCH_ON     SwitchAction = "turn_on"
+	SWITCH_OFF    SwitchAction = "turn_off"
+	SWITCH_TOGGLE SwitchAction = "toggle"
+)
+
+func (m *homeassistant) Switch(entityId string, action SwitchAction) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+	}{
+		EntityId: entityId,
+	}
+
+	err := m.callService("switch", string(action), req)
 	if err != nil {
 		return err
 	}
