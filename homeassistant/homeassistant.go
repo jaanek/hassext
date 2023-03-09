@@ -25,6 +25,8 @@ type HomeAssistant interface {
 	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
 	TimerStart(string, string) error
 	Timer(string, TimerAction) error
+	CounterConfigure(string, uint64, uint64, uint64, uint64, uint64) error
+	Counter(string, CounterAction) error
 	GetNordpoolPrices() NordpoolPrices
 	Modbus
 }
