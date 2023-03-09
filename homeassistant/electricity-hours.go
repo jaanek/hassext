@@ -1,16 +1,55 @@
 package homeassistant
 
-import "sort"
+import (
+	"sort"
+)
 
 type SequentialHours struct {
 	StartIndex int
-	EndIndex   int
+	Limit      float64
+}
+type SequentialHoursAvg struct {
+	StartIndex   int
+	AveragePrice float64
+	TotalPrice   float64
 }
 
-func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int) []SequentialHours {
+type SequentialHoursList []SequentialHours
+
+func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int) []SequentialHoursAvg {
+	var weights = make([]SequentialHoursAvg, 0)
+	for i := 0; i < len(hours); i++ {
+		seqHours := []float64{}
+		for j := i; j < len(hours); j++ {
+			h := hours[j]
+			seqHours = append(seqHours, h)
+
+			// calculate average for the # of hours and save it
+			if len(seqHours) == nrOfSeqHours {
+				weights = append(weights, SequentialHoursAvg{
+					StartIndex:   i,
+					AveragePrice: calcAvg(seqHours),
+					TotalPrice:   calcTotal(seqHours),
+				})
+				break // calculate next set of seq hours starting from next i
+			}
+		}
+		// we cannot calculate any more averages
+		if len(seqHours) < nrOfSeqHours {
+			break
+		}
+	}
+
+	// find the lowes weight
+	sort.Slice(weights, func(i, j int) bool {
+		return weights[i].TotalPrice < weights[j].TotalPrice
+	})
+	return weights
+}
+
+func FindCheapestElectricityHoursByIncLevel(hours []float64, nrOfSeqHours int) SequentialHoursList {
 	all := []SequentialHours{}
 	ascending := OrderHoursAscending(hours)
-	// min, max := ascending[0], ascending[len(ascending)-1]
 	for _, limit := range ascending {
 		found := SequentialHours{}
 		seqHours := []float64{}
@@ -19,12 +58,6 @@ func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int) []Sequentia
 
 			// skip the ones not below limit/threshold
 			if h > limit {
-				// if we had previous hours below limit/threshold and we are not at the end
-				// if len(seqHours) > 0 && (j+1) < len(hours) {
-				// 	// start from next
-				// 	j = found.StartIndex
-				// }
-
 				// reset the found
 				found = SequentialHours{}
 				seqHours = []float64{}
@@ -35,8 +68,9 @@ func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int) []Sequentia
 			seqHours = append(seqHours, h)
 			if len(seqHours) == 1 {
 				found.StartIndex = j
+				found.Limit = limit
 			} else if len(seqHours) == nrOfSeqHours {
-				found.EndIndex = j
+				// found.EndIndex = j
 				all = append(all, found)
 				// reset the found
 				found = SequentialHours{}
@@ -49,6 +83,22 @@ func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int) []Sequentia
 		}
 	}
 	return all
+}
+
+func calcTotal(hours []float64) float64 {
+	var total float64
+	for _, h := range hours {
+		total += h
+	}
+	return total
+}
+
+func calcAvg(hours []float64) float64 {
+	var total float64
+	for _, h := range hours {
+		total += h
+	}
+	return total / float64(len(hours))
 }
 
 func FindMinMax(hours []float64) (min float64, max float64) {

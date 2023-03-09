@@ -37,13 +37,16 @@ type HomeAssistant interface {
 }
 
 type homeassistant struct {
-	lo             logf.Logger
-	http           httpclient.HttpClient
-	params         *HttpClientParams
-	errors         chan error
-	stateData      data.Data
-	dataUpdate     chan struct{}
-	nordpoolPrices NordpoolPrices
+	lo              logf.Logger
+	http            httpclient.HttpClient
+	params          *HttpClientParams
+	errors          chan error
+	stateData       data.Data
+	dataUpdate      chan struct{}
+	nordpoolPrices  NordpoolPrices
+	dishwasherStart time.Time
+	kyteStart       time.Time
+	heatingAllowed  bool
 }
 
 type HttpClientParams struct {
@@ -188,9 +191,12 @@ func (m *homeassistant) updateData() error {
 	// t1 := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, t.Nanosecond(), t.Location())
 	n := time.Now()
 	kyteStart := time.Date(n.Year(), n.Month(), n.Day(), 3, 0, 0, 0, n.Location())
-	err := m.SetInputDateTime("input_datetime.soojuspump_kyte_start", kyteStart, INPUT_TIME)
-	if err != nil {
-		return err
+	if m.kyteStart != kyteStart {
+		err := m.SetInputDateTime("input_datetime.soojuspump_kyte_start", kyteStart, INPUT_TIME)
+		if err != nil {
+			return err
+		}
+		m.kyteStart = kyteStart
 	}
 
 	// set start time for diswasher for tomorrow night
@@ -204,17 +210,24 @@ func (m *homeassistant) updateData() error {
 		if len(cheapestAll) > 0 {
 			cheapest := cheapestAll[0]
 			dishwasherStart := time.Date(n.Year(), n.Month(), n.Day(), cheapest.StartIndex, 0, 0, 0, n.Location())
-			err = m.SetInputDateTime("input_datetime.dishwasher_start", dishwasherStart, INPUT_TIME)
-			if err != nil {
-				return err
+			if m.dishwasherStart != dishwasherStart {
+				err := m.SetInputDateTime("input_datetime.dishwasher_start", dishwasherStart, INPUT_TIME)
+				if err != nil {
+					return err
+				}
+				m.dishwasherStart = dishwasherStart
 			}
 		}
 	}
 
 	// set the heating allowed
-	err = m.SetInputBoolean("input_boolean.katel_heating_allowed", BOOLEAN_TURN_ON)
-	if err != nil {
-		return err
+	var heatingAllowed bool = true
+	if m.heatingAllowed != heatingAllowed {
+		err := m.SetInputBoolean("input_boolean.katel_heating_allowed", BOOLEAN_TURN_ON)
+		if err != nil {
+			return err
+		}
+		m.heatingAllowed = heatingAllowed
 	}
 	return nil
 }
