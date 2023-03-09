@@ -91,8 +91,16 @@ func (m *homeassistant) Start(ctx context.Context) {
 						m.lo.Info("Nordpool", "prices", m.nordpoolPrices)
 					}
 
+					// timer.test . States: idle (when pressed finish or cancel), active (when pressed start), paused (when pressed cancel)
+					entity, err := m.ParseEntityState("timer.test")
+					if err != nil {
+						m.errors <- err
+					} else {
+						m.lo.Info("Timer test", "state", entity)
+					}
+
 					// emodul controller state
-					entity, err := m.ParseEntityState("sensor.controller_state")
+					entity, err = m.ParseEntityState("sensor.controller_state")
 					if err != nil {
 						m.errors <- err
 					} else {
@@ -112,7 +120,7 @@ func (m *homeassistant) Start(ctx context.Context) {
 					} else {
 						m.lo.Info("Emodul", "external temperature", entity)
 					}
-					// komfovent operation mode
+					// komfovent operation mode. Modes: Normal, Intensive, Away, Boost
 					entity, err = m.ParseEntityState("sensor.komfovent_operation_mode")
 					if err != nil {
 						m.errors <- err

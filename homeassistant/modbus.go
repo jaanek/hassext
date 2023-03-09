@@ -5,6 +5,7 @@ type Modbus interface {
 	ModbusWriteCoil(string, uint, byte, string) error
 }
 
+// https://www.home-assistant.io/integrations/modbus#modbus-services
 func (m *homeassistant) ModbusWriteRegister(hub string, address uint, unit byte, value string) error {
 	var req = struct {
 		Hub     string `json:"hub"`

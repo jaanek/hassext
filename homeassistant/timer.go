@@ -5,6 +5,7 @@ import (
 	"regexp"
 )
 
+// https://www.home-assistant.io/integrations/timer/
 func (m *homeassistant) TimerStart(entityId string, duration string) error {
 	// https://regex101.com/r/9Qa071/6
 	// validate duration
