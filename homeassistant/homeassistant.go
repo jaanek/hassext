@@ -13,17 +13,23 @@ import (
 	"github.com/zerodha/logf"
 )
 
+type Modbus interface {
+	ModbusWriteRegister(string, uint, byte, string) error
+	ModbusWriteCoil(string, uint, byte, string) error
+}
+
 type HomeAssistant interface {
 	Start(context.Context)
 	Notify(string, string, string) error
+	Switch(string, SwitchAction) error
 	SetInputDateTime(string, time.Time, DateTimeOption) error
 	SetInputBoolean(string, BooleanAction) error
 	Automation(string, AutomationAction) error
 	Climate(string, ClimateAction) error
 	ClimateSetHvacMode(string, ClimateHvacMode) error
 	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
-	Switch(string, SwitchAction) error
 	GetNordpoolPrices() NordpoolPrices
+	Modbus
 }
 
 type EntityState struct {
@@ -115,6 +121,20 @@ func (m *homeassistant) Start(ctx context.Context) {
 					} else {
 						m.lo.Info("Emodul", "operation mode", entity)
 					}
+					// external temperature
+					entity, err = m.ParseEntityState("sensor.external_temperature")
+					if err != nil {
+						m.errors <- err
+					} else {
+						m.lo.Info("Emodul", "external temperature", entity)
+					}
+					// komfovent operation mode
+					entity, err = m.ParseEntityState("sensor.komfovent_operation_mode")
+					if err != nil {
+						m.errors <- err
+					} else {
+						m.lo.Info("Komfovent", "operation mode", entity)
+					}
 
 					// update states
 					err = m.updateData()
@@ -181,6 +201,50 @@ func (m *homeassistant) updateData() error {
 		return err
 	}
 	return nil
+}
+
+func (m *homeassistant) Notify(entityId string, title string, msg string) error {
+	// persistent_notification
+	// mobile_app_ac2003
+	var req = struct {
+		Title   string `json:"title"`
+		Message string `json:"message"`
+	}{
+		Title:   title,
+		Message: msg,
+	}
+
+	err := m.callService("notify", entityId, req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type SwitchAction string
+
+const (
+	SWITCH_ON     SwitchAction = "turn_on"
+	SWITCH_OFF    SwitchAction = "turn_off"
+	SWITCH_TOGGLE SwitchAction = "toggle"
+)
+
+func (m *homeassistant) Switch(entityId string, action SwitchAction) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+	}{
+		EntityId: entityId,
+	}
+
+	err := m.callService("switch", string(action), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *homeassistant) GetNordpoolPrices() NordpoolPrices {
+	return m.nordpoolPrices
 }
 
 type DateTimeOption string
@@ -343,48 +407,44 @@ func (m *homeassistant) ClimateSetTemperature(entityId string, temp float32, mod
 	return nil
 }
 
-func (m *homeassistant) Notify(entityId string, title string, msg string) error {
-	// persistent_notification
-	// mobile_app_ac2003
+func (m *homeassistant) ModbusWriteRegister(hub string, address uint, unit byte, value string) error {
 	var req = struct {
-		Title   string `json:"title"`
-		Message string `json:"message"`
+		Hub     string `json:"hub"`
+		Address uint   `json:"address"`
+		Slave   byte   `json:"slave,omitempty"`
+		Value   string `json:"value"`
 	}{
-		Title:   title,
-		Message: msg,
+		Hub:     hub,
+		Address: address,
+		Slave:   unit,
+		Value:   value,
 	}
 
-	err := m.callService("notify", entityId, req)
+	err := m.callService("modbus", "write_register", req)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-type SwitchAction string
-
-const (
-	SWITCH_ON     SwitchAction = "turn_on"
-	SWITCH_OFF    SwitchAction = "turn_off"
-	SWITCH_TOGGLE SwitchAction = "toggle"
-)
-
-func (m *homeassistant) Switch(entityId string, action SwitchAction) error {
+func (m *homeassistant) ModbusWriteCoil(hub string, address uint, unit byte, state string) error {
 	var req = struct {
-		EntityId string `json:"entity_id"`
+		Hub     string `json:"hub"`
+		Address uint   `json:"address"`
+		Slave   byte   `json:"slave,omitempty"`
+		State   string `json:"state"`
 	}{
-		EntityId: entityId,
+		Hub:     hub,
+		Address: address,
+		Slave:   unit,
+		State:   state,
 	}
 
-	err := m.callService("switch", string(action), req)
+	err := m.callService("modbus", "write_coil", req)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (m *homeassistant) GetNordpoolPrices() NordpoolPrices {
-	return m.nordpoolPrices
 }
 
 func (m *homeassistant) callService(domain string, service string, input any) error {
@@ -435,9 +495,6 @@ func (m *homeassistant) parseNordpoolPrices() (*NordpoolPrices, error) {
 	}
 	entityData := data.Data{Value: json}
 	prices.State = entityData.GetString("$.state", &errors)
-	if errors.HasAny() {
-		return nil, errors.FirstError()
-	}
 	prices.CurrentPrice = entityData.GetFloat64("$.attributes.current_price", &errors)
 	prices.Average = entityData.GetFloat64("$.attributes.average", &errors)
 	prices.Peak = entityData.GetFloat64("$.attributes.peak", &errors)
@@ -447,7 +504,7 @@ func (m *homeassistant) parseNordpoolPrices() (*NordpoolPrices, error) {
 	prices.Currency = entityData.GetString("$.attributes.currency", &errors)
 	prices.Country = entityData.GetString("$.attributes.country", &errors)
 	if errors.HasAny() {
-		return nil, errors.FirstError()
+		return nil, errors
 	}
 	todayData := entityData.GetArray("$.attributes.today.*")
 	for _, t := range todayData {
