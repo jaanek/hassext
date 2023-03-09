@@ -179,12 +179,36 @@ func (m *homeassistant) fetchData() error {
 }
 
 func (m *homeassistant) updateData() error {
+	// make copies of slices
+	nordpoolPrices := m.GetNordpoolPrices()
+	// todayPrices := append([]float64(nil), nordpoolPrices.Today...)
+	tomorrowPrices := append([]float64(nil), nordpoolPrices.Tomorrow...)
+
+	// set start time for soojuspumpt kyte
 	// t1 := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, t.Nanosecond(), t.Location())
 	n := time.Now()
-	t := time.Date(n.Year(), n.Month(), n.Day(), 3, 0, 0, 0, n.Location())
-	err := m.SetInputDateTime("input_datetime.soojuspump_kyte_start", t, INPUT_TIME)
+	kyteStart := time.Date(n.Year(), n.Month(), n.Day(), 3, 0, 0, 0, n.Location())
+	err := m.SetInputDateTime("input_datetime.soojuspump_kyte_start", kyteStart, INPUT_TIME)
 	if err != nil {
 		return err
+	}
+
+	// set start time for diswasher for tomorrow night
+	if len(tomorrowPrices) > 0 {
+		// we concat today late night + tomorrow night till morning hours to get cheapest from those
+		// hours := append([]float64(nil), todayPrices[23:]...) // from 23:00 -> 23:00
+		hours := append([]float64(nil), tomorrowPrices[0:7]...) // from 00:00 -> 06:00
+
+		// get the cheapestAll 4 sequential hours from provided list. 4 hours is enough for dishwasher to finish in eco mode
+		cheapestAll := FindCheapestElectricityHours(hours, 4)
+		if len(cheapestAll) > 0 {
+			cheapest := cheapestAll[0]
+			dishwasherStart := time.Date(n.Year(), n.Month(), n.Day(), cheapest.StartIndex, 0, 0, 0, n.Location())
+			err = m.SetInputDateTime("input_datetime.dishwasher_start", dishwasherStart, INPUT_TIME)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// set the heating allowed
