@@ -66,3 +66,76 @@ func (m *homeassistant) SetInputBoolean(entityId string, action BooleanAction) e
 	}
 	return nil
 }
+
+type ButtonAction string
+
+const (
+	ButtonPress ButtonAction = "press"
+)
+
+func (m *homeassistant) SetInputButton(entityId string, action ButtonAction) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+	}{
+		EntityId: entityId,
+	}
+
+	err := m.callService("input_button", string(action), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *homeassistant) SetInputTextValue(entityId string, value string) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+		Value    string `json:"value"`
+	}{
+		EntityId: entityId,
+		Value:    value,
+	}
+
+	err := m.callService("input_text", "set_value", req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *homeassistant) SetInputNumberValue(entityId string, value uint64) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+		Value    uint64 `json:"value"`
+	}{
+		EntityId: entityId,
+		Value:    value,
+	}
+
+	err := m.callService("input_number", "set_value", req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type NumberAction string
+
+const (
+	NumberIncrement NumberAction = "increment"
+	NumberDecrement NumberAction = "decrement"
+)
+
+func (m *homeassistant) SetInputNumber(entityId string, action NumberAction) error {
+	var req = struct {
+		EntityId string `json:"entity_id"`
+	}{
+		EntityId: entityId,
+	}
+
+	err := m.callService("input_number", string(action), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}

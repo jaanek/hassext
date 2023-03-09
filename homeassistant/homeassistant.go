@@ -17,8 +17,13 @@ type HomeAssistant interface {
 	Start(context.Context)
 	Notify(string, string, string) error
 	Switch(string, SwitchAction) error
+	Light(string, LightAction) error
 	SetInputDateTime(string, time.Time, DateTimeOption) error
 	SetInputBoolean(string, BooleanAction) error
+	SetInputButton(string, ButtonAction) error
+	SetInputTextValue(string, string) error
+	SetInputNumberValue(string, uint64) error
+	SetInputNumber(string, NumberAction) error
 	Automation(string, AutomationAction) error
 	Climate(string, ClimateAction) error
 	ClimateSetHvacMode(string, ClimateHvacMode) error
