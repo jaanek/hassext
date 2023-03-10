@@ -128,47 +128,20 @@ func (b *brain) updateData() error {
 	// todayPrices := append([]float64(nil), b.nordpoolPrices.Today...)
 	tomorrowPrices := append([]float64(nil), b.nordpoolPrices.Tomorrow...)
 
-	// set start time for soojuspumpt kyte
-	// t1 := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, t.Nanosecond(), t.Location())
-	n := time.Now()
-	kyteStart := time.Date(n.Year(), n.Month(), n.Day(), 3, 0, 0, 0, n.Location())
-	if b.kyteStart != kyteStart {
-		err := b.ha.SetInputDateTime("input_datetime.soojuspump_kyte_start", kyteStart, homeassistant.INPUT_TIME)
-		if err != nil {
-			return err
-		}
-		b.kyteStart = kyteStart
+	// heating
+	err := b.SetHeatingStartTime()
+	if err != nil {
+		b.errors <- err
+	}
+	err = b.SetHeatingAllowed()
+	if err != nil {
+		b.errors <- err
 	}
 
-	// set start time for diswasher for tomorrow night
-	if len(tomorrowPrices) > 0 {
-		// we concat today late night + tomorrow night till morning hours to get cheapest from those
-		// hours := append([]float64(nil), todayPrices[23:]...) // from 23:00 -> 23:00
-		hours := append([]float64(nil), tomorrowPrices[0:7]...) // from 00:00 -> 06:00
-
-		// get the cheapestAll 4 sequential hours from provided list. 4 hours is enough for dishwasher to finish in eco mode
-		cheapestAll := nordpool.FindCheapestElectricityHours(hours, 4)
-		if len(cheapestAll) > 0 {
-			cheapest := cheapestAll[0]
-			dishwasherStart := time.Date(n.Year(), n.Month(), n.Day(), cheapest.StartIndex, 0, 0, 0, n.Location())
-			if b.dishwasherStart != dishwasherStart {
-				err := b.ha.SetInputDateTime("input_datetime.dishwasher_start", dishwasherStart, homeassistant.INPUT_TIME)
-				if err != nil {
-					return err
-				}
-				b.dishwasherStart = dishwasherStart
-			}
-		}
-	}
-
-	// set the heating allowed
-	var heatingAllowed bool = true
-	if b.heatingAllowed != heatingAllowed {
-		err := b.ha.SetInputBoolean("input_boolean.katel_heating_allowed", homeassistant.BOOLEAN_TURN_ON)
-		if err != nil {
-			return err
-		}
-		b.heatingAllowed = heatingAllowed
+	// dishwasher
+	err = b.SetDishwasherStartTime(tomorrowPrices)
+	if err != nil {
+		b.errors <- err
 	}
 	return nil
 }
