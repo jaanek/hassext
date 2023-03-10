@@ -14,11 +14,12 @@ type SequentialHoursAvg struct {
 
 type SequentialHoursList []SequentialHours
 
-func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int) []SequentialHoursAvg {
+// from - inclusive, to - exclusive
+func FindCheapestElectricityHours(hours []float64, nrOfSeqHours int, from, to int) []SequentialHoursAvg {
 	var weights = make([]SequentialHoursAvg, 0)
-	for i := 0; i < len(hours); i++ {
+	for i := from; i < to; i++ {
 		seqHours := []float64{}
-		for j := i; j < len(hours); j++ {
+		for j := i; j < to; j++ {
 			h := hours[j]
 			seqHours = append(seqHours, h)
 

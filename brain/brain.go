@@ -15,13 +15,25 @@ type Brain interface {
 }
 
 type brain struct {
-	lo              logf.Logger
-	ha              homeassistant.HomeAssistant
-	errors          chan error
-	nordpoolPrices  nordpool.NordpoolPrices
-	dishwasherStart time.Time
-	kyteStart       time.Time
-	heatingAllowed  bool
+	lo                               logf.Logger
+	ha                               homeassistant.HomeAssistant
+	errors                           chan error
+	nordpoolPrices                   nordpool.NordpoolPrices
+	dishwasherStart                  time.Time
+	heapPumpHeatingStart             time.Time
+	heatPumpHeating                  EntityState // example: "heat" / "off"
+	heatPumpWaterTank                EntityState // example: "on" / "off"
+	heatPumpWaterTankBoost           EntityState // example: "on" / "off"
+	heatPumpWaterTankStartState      EntityState // example: "03:00:00"
+	heatPumpWaterTankAutomationStart EntityState // example: "on" / "off"
+	heatPumpWaterTankAutomationStop  EntityState // example: "on" / "off"
+	heatPumpWaterTankStart           time.Time
+	heatPumpWaterTankStop            time.Time
+	emodulHeatingAllowed             bool
+	emodulControllerState            EntityState
+	emodulOperationMode              EntityState
+	emodulExternalTemp               EntityState
+	emodulBoilerTemp                 EntityState // example: "state": "50.4"
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant) Brain {
@@ -70,16 +82,6 @@ func (b *brain) Run(ctx context.Context) {
 func (b *brain) onDataUpdate() {
 	state := b.ha.GetStateData()
 
-	// get nordpool prices
-	prices, err := nordpool.ParseNordpoolPrices(state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.nordpoolPrices = *prices
-		b.nordpoolPrices.Updated = time.Now()
-		b.lo.Info("Nordpool", "prices", b.nordpoolPrices)
-	}
-
 	// timer.test . States: idle (when pressed finish or cancel), active (when pressed start), paused (when pressed cancel)
 	entity, err := ParseEntityState("timer.test", state)
 	if err != nil {
@@ -88,34 +90,10 @@ func (b *brain) onDataUpdate() {
 		b.lo.Info("Timer test", "state", entity)
 	}
 
-	// emodul controller state
-	entity, err = ParseEntityState("sensor.controller_state", state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.lo.Info("Emodul", "controller state", entity)
-	}
-	// emodul operation mode
-	entity, err = ParseEntityState("sensor.operation_modes", state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.lo.Info("Emodul", "operation mode", entity)
-	}
-	// external temperature
-	entity, err = ParseEntityState("sensor.external_temperature", state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.lo.Info("Emodul", "external temperature", entity)
-	}
-	// komfovent operation mode. Modes: Normal, Intensive, Away, Boost
-	entity, err = ParseEntityState("sensor.komfovent_operation_mode", state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.lo.Info("Komfovent", "operation mode", entity)
-	}
+	b.Nordpool(state)
+	b.Emodule(state)
+	b.HeatPump(state)
+	b.Komfovent(state)
 
 	// update states
 	err = b.updateData()
@@ -125,15 +103,15 @@ func (b *brain) onDataUpdate() {
 }
 
 func (b *brain) updateData() error {
-	// todayPrices := append([]float64(nil), b.nordpoolPrices.Today...)
+	todayPrices := append([]float64(nil), b.nordpoolPrices.Today...)
 	tomorrowPrices := append([]float64(nil), b.nordpoolPrices.Tomorrow...)
 
 	// heating
-	err := b.SetHeatingStartTime()
+	err := b.SetHeatPumpWaterTankStartStopTime(TODAY_PM_9, TOMORROW_AM_9, todayPrices, tomorrowPrices)
 	if err != nil {
 		b.errors <- err
 	}
-	err = b.SetHeatingAllowed()
+	err = b.SetHeatPumpAutomationsOnOff()
 	if err != nil {
 		b.errors <- err
 	}

@@ -3,6 +3,7 @@ package brain
 import (
 	"time"
 
+	"github.com/jaanek/hassext/dishwasher"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/nordpool"
 )
@@ -17,19 +18,19 @@ func (b *brain) SetDishwasherStartTime(tomorrowPrices []float64) error {
 
 	// we concat today late night + tomorrow night till morning hours to get cheapest from those
 	// hours := append([]float64(nil), todayPrices[23:]...) // from 23:00 -> 23:00
-	hours := append([]float64(nil), tomorrowPrices[0:7]...) // from 00:00 -> 06:00
+	// hours := append([]float64(nil), tomorrowPrices[0:7]...) // from 00:00 -> 06:00
 
 	// get the cheapestAll 4 sequential hours from provided list. 4 hours is enough for dishwasher to finish in eco mode
-	cheapestAll := nordpool.FindCheapestElectricityHours(hours, 4)
+	cheapestAll := nordpool.FindCheapestElectricityHours(tomorrowPrices, 4, 0, 7)
 	if len(cheapestAll) > 0 {
 		cheapest := cheapestAll[0]
-		dishwasherStart := time.Date(n.Year(), n.Month(), n.Day(), cheapest.StartIndex, 0, 0, 0, n.Location())
-		if b.dishwasherStart != dishwasherStart {
-			err := b.ha.SetInputDateTime("input_datetime.dishwasher_start", dishwasherStart, homeassistant.INPUT_TIME)
+		start := time.Date(n.Year(), n.Month(), n.Day(), cheapest.StartIndex, 0, 0, 0, n.Location())
+		if b.dishwasherStart != start {
+			err := b.ha.SetInputDateTime(string(dishwasher.ENTITY_TIME_DISHWASHER_START), start, homeassistant.INPUT_TIME)
 			if err != nil {
 				return err
 			}
-			b.dishwasherStart = dishwasherStart
+			b.dishwasherStart = start
 		}
 	}
 	return nil
