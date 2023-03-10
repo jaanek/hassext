@@ -291,16 +291,16 @@ func (s *snapcast) Run(ctx context.Context) {
 	}
 }
 
-func (s *snapcast) fetchServerStatus() (*data.Data, error) {
+func (s *snapcast) fetchServerStatus() (data.DataValue, error) {
 	body, err := s.RpcCall(jrpc.NewCall("Server.GetStatus"))
 	result, err := jrpc.RpcParseResult(body)
 	if err != nil {
-		return nil, err
+		return data.DataValue{}, err
 	}
 	return result, nil
 }
 
-func (s *snapcast) parseServerStatus(result *data.Data) {
+func (s *snapcast) parseServerStatus(result data.DataValue) {
 	// clear the status
 	s.Status.Groups = make(map[string]*Group)
 	s.Status.Clients = make(map[string]*Client)
@@ -313,7 +313,7 @@ func (s *snapcast) parseServerStatus(result *data.Data) {
 		// s.lo.Info("Data", "length", len(groupsArr), "groups", groupsArr)
 		for _, groupMap := range groupsArr {
 			// parse data
-			groupData := data.Data{Value: groupMap}
+			groupData := data.NewDataValue(groupMap)
 			groupErrors := &data.Errors{}
 			id := groupData.GetString("$.id", groupErrors)
 			streamId := groupData.GetString("$.stream_id", groupErrors)

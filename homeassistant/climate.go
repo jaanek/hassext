@@ -2,6 +2,12 @@ package homeassistant
 
 import "fmt"
 
+type Climate interface {
+	Climate(string, ClimateAction) error
+	ClimateSetHvacMode(string, ClimateHvacMode) error
+	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
+}
+
 type ClimateAction string
 
 const (

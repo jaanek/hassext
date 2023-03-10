@@ -1,8 +1,6 @@
-package homeassistant
+package nordpool
 
-import (
-	"sort"
-)
+import "sort"
 
 type SequentialHours struct {
 	StartIndex int

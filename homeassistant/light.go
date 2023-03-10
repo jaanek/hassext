@@ -1,5 +1,9 @@
 package homeassistant
 
+type Light interface {
+	Light(string, LightAction) error
+}
+
 type LightAction string
 
 const (

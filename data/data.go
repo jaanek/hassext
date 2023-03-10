@@ -9,36 +9,44 @@ import (
 
 type Data struct {
 	sync.RWMutex
-	Value any
+	value DataValue
+}
+
+type DataValue struct {
+	val any
+}
+
+func NewDataValue(val any) DataValue {
+	return DataValue{val}
 }
 
 func (d *Data) Write(val any) {
 	d.Lock()
 	defer d.Unlock()
-	d.Value = val
+	d.value.val = val
 }
 
-func (d *Data) Get() any {
+func (d *Data) Get() DataValue {
 	d.RLock()
 	defer d.RUnlock()
-	return d.Value
+	return d.value
 }
 
-func (d *Data) GetObject(path string) any {
+func (d *DataValue) GetObject(path string) any {
 	dp := jp.MustParseString(path)
-	result := dp.Get(d.Get())
+	result := dp.Get(d.val)
 	if len(result) > 0 {
 		return result[0]
 	}
 	return nil
 }
 
-func (d *Data) GetArray(path string) []any {
+func (d *DataValue) GetArray(path string) []any {
 	dp := jp.MustParseString(path)
-	return dp.Get(d.Get())
+	return dp.Get(d.val)
 }
 
-func (d *Data) GetInt64(path string, errors *Errors) int64 {
+func (d *DataValue) GetInt64(path string, errors *Errors) int64 {
 	val, ok := d.GetObject(path).(int64)
 	if !ok {
 		if errors != nil {
@@ -49,7 +57,7 @@ func (d *Data) GetInt64(path string, errors *Errors) int64 {
 	return val
 }
 
-func (d *Data) GetFloat64(path string, errors *Errors) float64 {
+func (d *DataValue) GetFloat64(path string, errors *Errors) float64 {
 	val, ok := d.GetObject(path).(float64)
 	if !ok {
 		if errors != nil {
@@ -60,7 +68,7 @@ func (d *Data) GetFloat64(path string, errors *Errors) float64 {
 	return val
 }
 
-func (d *Data) GetString(path string, errors *Errors) string {
+func (d *DataValue) GetString(path string, errors *Errors) string {
 	val, ok := d.GetObject(path).(string)
 	if !ok {
 		if errors != nil {
@@ -71,7 +79,7 @@ func (d *Data) GetString(path string, errors *Errors) string {
 	return val
 }
 
-func (d *Data) GetBool(path string, errors *Errors) *bool {
+func (d *DataValue) GetBool(path string, errors *Errors) *bool {
 	val, ok := d.GetObject(path).(bool)
 	if !ok {
 		if errors != nil {

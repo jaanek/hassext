@@ -16,9 +16,9 @@ func newId() int {
 	return requestId
 }
 
-func RpcParseResult(body []byte) (result *data.Data, error error) {
+func RpcParseResult(body []byte) (result data.DataValue, error error) {
 	parsed, error := oj.Parse(body)
-	result = &data.Data{Value: parsed}
+	result = data.NewDataValue(parsed)
 	if error != nil {
 		return
 	}

@@ -1,5 +1,10 @@
 package homeassistant
 
+type Counter interface {
+	CounterConfigure(string, uint64, uint64, uint64, uint64, uint64) error
+	Counter(string, CounterAction) error
+}
+
 func (m *homeassistant) CounterConfigure(entityId string, min uint64, max uint64, step uint64, initial uint64, value uint64) error {
 	var req = struct {
 		EntityId string `json:"entity_id"`

@@ -23,7 +23,6 @@ type EModul interface {
 	BoilerDamping() error
 	SetBufferTargetTemp(BufferTempReadingLocation, uint, bool) error
 	SetBufferTargetTemps(uint, uint, bool) error
-	ParseValve(uint) (*BuiltInValve, error)
 }
 
 type emodul struct {
@@ -174,9 +173,12 @@ func (m *emodul) Start(ctx context.Context) {
 			select {
 			case <-m.dataUpdate:
 				{
+					moduleData := m.moduleData.Get()
+					menuData := m.menuData.Get()
+
 					// parse floor water main valve and trigger sensor updates if values have changed
 					// at the end save the last values for the valve to compare against next time
-					v, err := m.ParseValve(1012)
+					v, err := ParseValve(1012, moduleData)
 					if err != nil {
 						m.lo.Error("Main valve parse", "error", err)
 						continue
@@ -193,7 +195,7 @@ func (m *emodul) Start(ctx context.Context) {
 					m.mainValve = v
 
 					// parse buffer tank temperatures
-					topBufferTemp, err := m.ParseTempSensor(1018)
+					topBufferTemp, err := ParseTempSensor(1018, moduleData, menuData)
 					if err != nil {
 						m.lo.Error("top buffer parsing", "error", err)
 					} else {
@@ -205,7 +207,7 @@ func (m *emodul) Start(ctx context.Context) {
 						}
 						m.topBufferTemp = topBufferTemp
 					}
-					bottomBufferTemp, err := m.ParseTempSensor(1019)
+					bottomBufferTemp, err := ParseTempSensor(1019, moduleData, menuData)
 					if err != nil {
 						m.lo.Error("bottom buffer parsing", "error", err)
 					} else {

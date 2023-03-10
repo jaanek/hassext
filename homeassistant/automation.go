@@ -1,5 +1,9 @@
 package homeassistant
 
+type Automation interface {
+	Automation(string, AutomationAction) error
+}
+
 type AutomationAction string
 
 const (

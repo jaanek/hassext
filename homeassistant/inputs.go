@@ -5,6 +5,15 @@ import (
 	"time"
 )
 
+type Inputs interface {
+	SetInputDateTime(string, time.Time, DateTimeOption) error
+	SetInputBoolean(string, BooleanAction) error
+	SetInputButton(string, ButtonAction) error
+	SetInputTextValue(string, string) error
+	SetInputNumberValue(string, uint64) error
+	SetInputNumber(string, NumberAction) error
+}
+
 type DateTimeOption string
 
 const (

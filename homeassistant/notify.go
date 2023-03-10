@@ -1,5 +1,9 @@
 package homeassistant
 
+type Notify interface {
+	Notify(string, string, string) error
+}
+
 func (m *homeassistant) Notify(entityId string, title string, msg string) error {
 	// persistent_notification
 	// mobile_app_ac2003

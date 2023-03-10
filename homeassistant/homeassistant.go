@@ -1,11 +1,9 @@
 package homeassistant
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/httpclient"
@@ -14,39 +12,24 @@ import (
 )
 
 type HomeAssistant interface {
-	Start(context.Context)
-	Notify(string, string, string) error
-	Switch(string, SwitchAction) error
-	Light(string, LightAction) error
-	SetInputDateTime(string, time.Time, DateTimeOption) error
-	SetInputBoolean(string, BooleanAction) error
-	SetInputButton(string, ButtonAction) error
-	SetInputTextValue(string, string) error
-	SetInputNumberValue(string, uint64) error
-	SetInputNumber(string, NumberAction) error
-	Automation(string, AutomationAction) error
-	Climate(string, ClimateAction) error
-	ClimateSetHvacMode(string, ClimateHvacMode) error
-	ClimateSetTemperature(string, float32, *ClimateHvacMode) error
-	TimerStart(string, string) error
-	Timer(string, TimerAction) error
-	CounterConfigure(string, uint64, uint64, uint64, uint64, uint64) error
-	Counter(string, CounterAction) error
-	GetNordpoolPrices() NordpoolPrices
+	Notify
+	Switch
+	Light
+	Climate
+	Inputs
+	Timer
+	Counter
+	Automation
 	Modbus
+	FetchData() error
+	GetStateData() data.DataValue
 }
 
 type homeassistant struct {
-	lo              logf.Logger
-	http            httpclient.HttpClient
-	params          *HttpClientParams
-	errors          chan error
-	stateData       data.Data
-	dataUpdate      chan struct{}
-	nordpoolPrices  NordpoolPrices
-	dishwasherStart time.Time
-	kyteStart       time.Time
-	heatingAllowed  bool
+	lo        logf.Logger
+	http      httpclient.HttpClient
+	params    *HttpClientParams
+	stateData data.Data
 }
 
 type HttpClientParams struct {
@@ -56,116 +39,17 @@ type HttpClientParams struct {
 
 func NewHomeAssistantClient(lo logf.Logger, params *HttpClientParams) HomeAssistant {
 	return &homeassistant{
-		lo:         lo,
-		http:       httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay),
-		params:     params,
-		errors:     make(chan error, 10),
-		dataUpdate: make(chan struct{}, 1),
+		lo:     lo,
+		http:   httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay),
+		params: params,
 	}
 }
 
-func (m *homeassistant) Start(ctx context.Context) {
-	// log errors if they happen
-	go func() {
-		for {
-			select {
-			case err := <-m.errors:
-				m.lo.Error("Error while fetching homeassistant data", "error", err)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// parse sensor's data on updates
-	go func() {
-		// start listening updates
-		for {
-			select {
-			case <-m.dataUpdate:
-				{
-					// get nordpool prices
-					prices, err := m.parseNordpoolPrices()
-					if err != nil {
-						m.errors <- err
-					} else {
-						m.nordpoolPrices = *prices
-						m.nordpoolPrices.Updated = time.Now()
-						m.lo.Info("Nordpool", "prices", m.nordpoolPrices)
-					}
-
-					// timer.test . States: idle (when pressed finish or cancel), active (when pressed start), paused (when pressed cancel)
-					entity, err := m.ParseEntityState("timer.test")
-					if err != nil {
-						m.errors <- err
-					} else {
-						m.lo.Info("Timer test", "state", entity)
-					}
-
-					// emodul controller state
-					entity, err = m.ParseEntityState("sensor.controller_state")
-					if err != nil {
-						m.errors <- err
-					} else {
-						m.lo.Info("Emodul", "controller state", entity)
-					}
-					// emodul operation mode
-					entity, err = m.ParseEntityState("sensor.operation_modes")
-					if err != nil {
-						m.errors <- err
-					} else {
-						m.lo.Info("Emodul", "operation mode", entity)
-					}
-					// external temperature
-					entity, err = m.ParseEntityState("sensor.external_temperature")
-					if err != nil {
-						m.errors <- err
-					} else {
-						m.lo.Info("Emodul", "external temperature", entity)
-					}
-					// komfovent operation mode. Modes: Normal, Intensive, Away, Boost
-					entity, err = m.ParseEntityState("sensor.komfovent_operation_mode")
-					if err != nil {
-						m.errors <- err
-					} else {
-						m.lo.Info("Komfovent", "operation mode", entity)
-					}
-
-					// update states
-					err = m.updateData()
-					if err != nil {
-						m.errors <- err
-					}
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// start fetching data
-	ticker := time.NewTicker(10 * time.Second)
-	for {
-		// fetch data
-		err := m.fetchData()
-		if err != nil {
-			werr := fmt.Errorf("fetch error %w", err)
-			m.errors <- werr
-			m.lo.Error("homeassistant", "error", werr)
-		} else {
-			m.dataUpdate <- struct{}{}
-		}
-
-		// wait next tick
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return
-		}
-	}
+func (m *homeassistant) GetStateData() data.DataValue {
+	return m.stateData.Get()
 }
 
-func (m *homeassistant) fetchData() error {
+func (m *homeassistant) FetchData() error {
 	// fetch entity states
 	body, err := m.Get(m.params.ApiUrl+"/states", func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
@@ -178,57 +62,6 @@ func (m *homeassistant) fetchData() error {
 		return err
 	}
 	m.stateData.Write(data)
-	return nil
-}
-
-func (m *homeassistant) updateData() error {
-	// make copies of slices
-	nordpoolPrices := m.GetNordpoolPrices()
-	// todayPrices := append([]float64(nil), nordpoolPrices.Today...)
-	tomorrowPrices := append([]float64(nil), nordpoolPrices.Tomorrow...)
-
-	// set start time for soojuspumpt kyte
-	// t1 := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, t.Nanosecond(), t.Location())
-	n := time.Now()
-	kyteStart := time.Date(n.Year(), n.Month(), n.Day(), 3, 0, 0, 0, n.Location())
-	if m.kyteStart != kyteStart {
-		err := m.SetInputDateTime("input_datetime.soojuspump_kyte_start", kyteStart, INPUT_TIME)
-		if err != nil {
-			return err
-		}
-		m.kyteStart = kyteStart
-	}
-
-	// set start time for diswasher for tomorrow night
-	if len(tomorrowPrices) > 0 {
-		// we concat today late night + tomorrow night till morning hours to get cheapest from those
-		// hours := append([]float64(nil), todayPrices[23:]...) // from 23:00 -> 23:00
-		hours := append([]float64(nil), tomorrowPrices[0:7]...) // from 00:00 -> 06:00
-
-		// get the cheapestAll 4 sequential hours from provided list. 4 hours is enough for dishwasher to finish in eco mode
-		cheapestAll := FindCheapestElectricityHours(hours, 4)
-		if len(cheapestAll) > 0 {
-			cheapest := cheapestAll[0]
-			dishwasherStart := time.Date(n.Year(), n.Month(), n.Day(), cheapest.StartIndex, 0, 0, 0, n.Location())
-			if m.dishwasherStart != dishwasherStart {
-				err := m.SetInputDateTime("input_datetime.dishwasher_start", dishwasherStart, INPUT_TIME)
-				if err != nil {
-					return err
-				}
-				m.dishwasherStart = dishwasherStart
-			}
-		}
-	}
-
-	// set the heating allowed
-	var heatingAllowed bool = true
-	if m.heatingAllowed != heatingAllowed {
-		err := m.SetInputBoolean("input_boolean.katel_heating_allowed", BOOLEAN_TURN_ON)
-		if err != nil {
-			return err
-		}
-		m.heatingAllowed = heatingAllowed
-	}
 	return nil
 }
 

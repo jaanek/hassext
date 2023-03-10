@@ -47,22 +47,23 @@ type TemperatureSensor struct {
 	max         int64
 }
 
-func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
+func ParseValve(id uint, moduleData data.DataValue) (*BuiltInValve, error) {
 	// check if we have a valve with specified id
 	parentPath := fmt.Sprintf("$.tiles[?(@.id == %v)].params", id)
-	obj := m.moduleData.GetObject(parentPath)
-	if obj == nil {
+	parent := moduleData.GetObject(parentPath)
+	if parent == nil {
 		return nil, fmt.Errorf(fmt.Sprintf("Valve with id %q not found", id))
 	}
+	parentData := data.NewDataValue(parent)
 	errs := data.Errors{}
 	valve := &BuiltInValve{
-		description:       m.moduleData.GetString(parentPath+".description", &errs),
-		valveNumber:       m.moduleData.GetInt64(parentPath+".valveNumber", &errs),
-		workingStatus:     m.moduleData.GetBool(parentPath+".workingStatus", &errs),
-		openingPercentage: m.moduleData.GetInt64(parentPath+".openingPercentage", &errs),
-		currentTemp:       m.moduleData.GetInt64(parentPath+".currentTemp", &errs),
-		returnTemp:        m.moduleData.GetInt64(parentPath+".returnTemp", &errs),
-		setTemp:           m.moduleData.GetInt64(parentPath+".setTemp", &errs),
+		description:       parentData.GetString("$.description", &errs),
+		valveNumber:       parentData.GetInt64("$.valveNumber", &errs),
+		workingStatus:     parentData.GetBool("$.workingStatus", &errs),
+		openingPercentage: parentData.GetInt64("$.openingPercentage", &errs),
+		currentTemp:       parentData.GetInt64("$.currentTemp", &errs),
+		returnTemp:        parentData.GetInt64("$.returnTemp", &errs),
+		setTemp:           parentData.GetInt64("$.setTemp", &errs),
 	}
 	if len(errs) > 0 {
 		return valve, errs
@@ -70,17 +71,17 @@ func (m *emodul) ParseValve(id uint) (*BuiltInValve, error) {
 	return valve, nil
 }
 
-func (m *emodul) ParseTempSensor(id uint) (*TemperatureSensor, error) {
+func ParseTempSensor(id uint, moduleData data.DataValue, menuData data.DataValue) (*TemperatureSensor, error) {
 	var sensor TemperatureSensor
 	var errors data.Errors
 
 	// get sensor data
 	parentPath := fmt.Sprintf("$.tiles[?(@.id == %v)]", id)
-	tileData := m.moduleData.GetObject(parentPath)
-	if tileData == nil {
+	parent := moduleData.GetObject(parentPath)
+	if parent == nil {
 		return nil, fmt.Errorf("Tile not found! id: %v", id)
 	}
-	tile := data.Data{Value: tileData}
+	tile := data.NewDataValue(parent)
 	sensor.currentTemp = tile.GetInt64("$.params.value", &errors)
 	if errors.HasAny() {
 		return nil, errors.FirstError()
@@ -92,11 +93,11 @@ func (m *emodul) ParseTempSensor(id uint) (*TemperatureSensor, error) {
 
 	// get menu data - sensor settings
 	parentPath = fmt.Sprintf("$.elements[?(@.id == %v)]", menuId)
-	menuData := m.menuData.GetObject(parentPath)
-	if menuData == nil {
+	parent = menuData.GetObject(parentPath)
+	if parent == nil {
 		return nil, fmt.Errorf("Menu not found! id: %v", id)
 	}
-	menu := data.Data{Value: menuData}
+	menu := data.NewDataValue(parent)
 	// parse target, min, max
 	sensor.targetTemp = menu.GetInt64("$.params.value", &errors)
 	sensor.min = menu.GetInt64("$.params.min", &errors)

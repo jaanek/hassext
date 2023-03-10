@@ -1,4 +1,4 @@
-package homeassistant
+package brain
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ type EntityState struct {
 	State string `json:"state"`
 }
 
-func (m *homeassistant) ParseEntityState(entityId string) (*EntityState, error) {
+func ParseEntityState(entityId string, state data.DataValue) (*EntityState, error) {
 	var entity EntityState = EntityState{
 		Id: entityId,
 	}
@@ -19,11 +19,11 @@ func (m *homeassistant) ParseEntityState(entityId string) (*EntityState, error) 
 
 	// get sensor data
 	entityPath := fmt.Sprintf("$[?(@.entity_id == \"%v\")]", entityId)
-	json := m.stateData.GetObject(entityPath)
-	if json == nil {
+	parent := state.GetObject(entityPath)
+	if parent == nil {
 		return nil, fmt.Errorf("Entity state not found! entity_id: %v", entityId)
 	}
-	entityData := data.Data{Value: json}
+	entityData := data.NewDataValue(parent)
 	entity.State = entityData.GetString("$.state", &errors)
 	if errors.HasAny() {
 		return nil, errors.FirstError()

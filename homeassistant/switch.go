@@ -1,5 +1,9 @@
 package homeassistant
 
+type Switch interface {
+	Switch(string, SwitchAction) error
+}
+
 type SwitchAction string
 
 const (

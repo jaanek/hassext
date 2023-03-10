@@ -6,6 +6,7 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/jaanek/hassext/brain"
 	"github.com/jaanek/hassext/emodul"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/hub"
@@ -27,6 +28,7 @@ type HassExt struct {
 	Rest     *rest.Rest
 	Sound    sound.Sound
 	HA       homeassistant.HomeAssistant
+	Brain    brain.Brain
 }
 
 // init home assistant integration
@@ -60,6 +62,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		ApiUrl: ko.String("homeassistant.apiUrl"),
 		Token:  ko.String("homeassistant.token"),
 	})
+	brain := brain.NewBrain(lo, ha)
 
 	return &HassExt{
 		opts:     opts,
@@ -71,6 +74,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		Rest:     r,
 		Sound:    sound,
 		HA:       ha,
+		Brain:    brain,
 	}, nil
 }
 
@@ -91,7 +95,7 @@ func (h *HassExt) Run(ctx context.Context) error {
 	}()
 
 	go func() {
-		h.HA.Start(ctx)
+		h.Brain.Run(ctx)
 	}()
 
 	// connect to the mq so that messages start flowing to the hub
