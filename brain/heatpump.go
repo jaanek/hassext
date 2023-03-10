@@ -2,6 +2,7 @@ package brain
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jaanek/hassext/data"
@@ -11,13 +12,29 @@ import (
 )
 
 func (b *brain) HeatPump(state data.DataValue) {
-	// heating
-	entity, err := ParseEntityState(string(heatpump.ENTITY_HEATING), state)
+	// water tank automation start
+	entity, err := ParseEntityState(string(heatpump.ENTITY_WATER_TANK_START), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heatPumpHeating = *entity
-		b.lo.Info("HeatPump", "heating", entity)
+		b.heatPumpWaterTankAutomationStart = *entity
+		b.lo.Info("HeatPump", "automation water tank start", entity)
+	}
+	// water tank automation stop
+	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK_STOP), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.heatPumpWaterTankAutomationStop = *entity
+		b.lo.Info("HeatPump", "automation water tank stop", entity)
+	}
+	// heating
+	thermostat, err := ParseThermostatState(string(heatpump.ENTITY_HEATING), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.heatPumpHeating = *thermostat
+		b.lo.Info("HeatPump", "heating", thermostat)
 	}
 	// water tank
 	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK), state)
@@ -43,21 +60,13 @@ func (b *brain) HeatPump(state data.DataValue) {
 		b.heatPumpWaterTankStartState = *entity
 		b.lo.Info("HeatPump", "water tank start state", entity)
 	}
-	// water tank automation start
-	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK_START), state)
+	// heating ignore max price per hour
+	entity, err = ParseEntityState(string(heatpump.ENTITY_BOOL_IGNORE_MAX_PRICE_PER_HOUR), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heatPumpWaterTankAutomationStart = *entity
-		b.lo.Info("HeatPump", "automation water tank start", entity)
-	}
-	// water tank automation stop
-	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK_STOP), state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.heatPumpWaterTankAutomationStop = *entity
-		b.lo.Info("HeatPump", "automation water tank stop", entity)
+		b.heapPumpHeatingIgnoreMaxPricePerHour = *entity
+		b.lo.Info("HeatPump", "heating ignore max price per hour", entity)
 	}
 }
 
@@ -204,17 +213,73 @@ func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayP
 	return nil
 }
 
-// func (b *brain) SetHeatPumpHeatingStartTime() error {
-// 	// set start time for soojuspumpt kyte
-// 	// t1 := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, t.Nanosecond(), t.Location())
-// 	n := time.Now()
-// 	heatingStart := time.Date(n.Year(), n.Month(), n.Day(), 3, 0, 0, 0, n.Location())
-// 	if b.heapPumpHeatingStart != heatingStart {
-// 		err := b.ha.SetInputDateTime(string(heatpump.ENTITY_TIME_HEATING_START), heatingStart, homeassistant.INPUT_TIME)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		b.heapPumpHeatingStart = heatingStart
-// 	}
-// 	return nil
-// }
+const MAX_PRICE_PER_HOUR float64 = 200
+
+func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float64) error {
+	now := time.Now()
+	nowHour := now.Hour()
+
+	// remove the last 3 maximum hours per day and max price from there
+	ascending := nordpool.OrderHoursAscending(todayPrices)
+	lastFour := ascending[len(ascending)-4:]
+	maxPrice := lastFour[0]
+
+	currentPrice := todayPrices[nowHour]
+	maxPriceAbove := currentPrice > MAX_PRICE_PER_HOUR
+	if b.heapPumpHeatingIgnoreMaxPricePerHour.State == "on" {
+		maxPriceAbove = false
+	}
+
+	// if current price is bigger than we allow then stop the heater
+	b.lo.Info("HeatPump set heating", "nowHour", nowHour, "currentPrice", currentPrice, "max price from today", maxPrice, "hard max price", MAX_PRICE_PER_HOUR, "ignore max price per hour", b.heapPumpHeatingIgnoreMaxPricePerHour.State)
+	if currentPrice > maxPrice || maxPriceAbove {
+		if b.heatPumpHeating.State != "off" {
+			b.lo.Info("HeatPump", "setting heating off")
+			err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		if b.heatPumpHeating.State != "heat" {
+			b.lo.Info("HeatPump", "setting heating on")
+			err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_HEAT)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
+	now := time.Now()
+	nowHour := now.Hour()
+	currentPrice := todayPrices[nowHour]
+
+	// check outside temperature
+	outsideTemp, err := strconv.ParseFloat(b.emodulExternalTemp.State, 32)
+	if err != nil {
+		return err
+	}
+	var newTemp float32 = 0
+	if outsideTemp < -10 {
+		newTemp = 10
+	} else if outsideTemp < -5 {
+		newTemp = 6
+	} else if outsideTemp < 0 {
+		newTemp = 4
+	}
+	// TODO. Take into account if it's sunny day then lower the newTemp
+
+	// if current price is bigger than we allow then stop the heater
+	b.lo.Info("HeatPump temperature", "outside temperature", outsideTemp, "new temperature", newTemp, "nowHour", nowHour, "currentPrice", currentPrice)
+	if b.heatPumpHeatingTemp != newTemp {
+		err = heatpump.SetHeatingTemperature(b.ha, newTemp, nil)
+		if err != nil {
+			return err
+		}
+		b.heatPumpHeatingTemp = newTemp
+	}
+	return nil
+}

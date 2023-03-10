@@ -13,10 +13,11 @@ const (
 type InputEntity string
 
 const (
-	ENTITY_TIME_HEATING_START InputEntity = "input_datetime.soojuspump_kyte_start"
-	ENTITY_TIME_HEATING_STOP  InputEntity = "input_datetime.soojuspump_kyte_stop"
-	ENTITY_TIME_WATER_START   InputEntity = "input_datetime.soojuspump_vesi_start"
-	ENTITY_TIME_WATER_STOP    InputEntity = "input_datetime.soojuspump_vesi_stop"
+	ENTITY_TIME_HEATING_START             InputEntity = "input_datetime.soojuspump_kyte_start"
+	ENTITY_TIME_HEATING_STOP              InputEntity = "input_datetime.soojuspump_kyte_stop"
+	ENTITY_TIME_WATER_START               InputEntity = "input_datetime.soojuspump_vesi_start"
+	ENTITY_TIME_WATER_STOP                InputEntity = "input_datetime.soojuspump_vesi_stop"
+	ENTITY_BOOL_IGNORE_MAX_PRICE_PER_HOUR InputEntity = "input_boolean.soojuspump_kyte_ignore_max_price_per_hour"
 )
 
 type AutomationEntity string

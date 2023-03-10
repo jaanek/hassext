@@ -15,25 +15,27 @@ type Brain interface {
 }
 
 type brain struct {
-	lo                               logf.Logger
-	ha                               homeassistant.HomeAssistant
-	errors                           chan error
-	nordpoolPrices                   nordpool.NordpoolPrices
-	dishwasherStart                  time.Time
-	heapPumpHeatingStart             time.Time
-	heatPumpHeating                  EntityState // example: "heat" / "off"
-	heatPumpWaterTank                EntityState // example: "on" / "off"
-	heatPumpWaterTankBoost           EntityState // example: "on" / "off"
-	heatPumpWaterTankStartState      EntityState // example: "03:00:00"
-	heatPumpWaterTankAutomationStart EntityState // example: "on" / "off"
-	heatPumpWaterTankAutomationStop  EntityState // example: "on" / "off"
-	heatPumpWaterTankStart           time.Time
-	heatPumpWaterTankStop            time.Time
-	emodulHeatingAllowed             bool
-	emodulControllerState            EntityState
-	emodulOperationMode              EntityState
-	emodulExternalTemp               EntityState
-	emodulBoilerTemp                 EntityState // example: "state": "50.4"
+	lo                                   logf.Logger
+	ha                                   homeassistant.HomeAssistant
+	errors                               chan error
+	nordpoolPrices                       nordpool.NordpoolPrices
+	dishwasherStart                      time.Time
+	heapPumpHeatingStart                 time.Time
+	heapPumpHeatingIgnoreMaxPricePerHour EntityState     // example: "on" / "off"
+	heatPumpHeating                      ThermostatState // example: "heat" / "off"
+	heatPumpHeatingTemp                  float32
+	heatPumpWaterTank                    EntityState // example: "on" / "off"
+	heatPumpWaterTankBoost               EntityState // example: "on" / "off"
+	heatPumpWaterTankStartState          EntityState // example: "03:00:00"
+	heatPumpWaterTankAutomationStart     EntityState // example: "on" / "off"
+	heatPumpWaterTankAutomationStop      EntityState // example: "on" / "off"
+	heatPumpWaterTankStart               time.Time
+	heatPumpWaterTankStop                time.Time
+	emodulHeatingAllowed                 bool
+	emodulControllerState                EntityState
+	emodulOperationMode                  EntityState
+	emodulExternalTemp                   EntityState
+	emodulBoilerTemp                     EntityState // example: "state": "50.4"
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant) Brain {
@@ -108,6 +110,14 @@ func (b *brain) updateData() error {
 
 	// heating
 	err := b.SetHeatPumpWaterTankStartStopTime(TODAY_PM_9, TOMORROW_AM_9, todayPrices, tomorrowPrices)
+	if err != nil {
+		b.errors <- err
+	}
+	err = b.SetHeatPumpHeating(todayPrices, MAX_PRICE_PER_HOUR)
+	if err != nil {
+		b.errors <- err
+	}
+	err = b.SetHeatPumpTemperature(todayPrices)
 	if err != nil {
 		b.errors <- err
 	}
