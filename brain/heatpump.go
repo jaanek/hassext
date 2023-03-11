@@ -2,7 +2,6 @@ package brain
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/jaanek/hassext/data"
@@ -109,8 +108,7 @@ func (b *brain) SetHeatPumpAutomationsOnOff() error {
 }
 
 const (
-	WaterTankHeatingLength = 4 // heating length
-	// WaterTankNextHoursLength = 12 // length to choose the cheapest price
+	WaterTankHeatingLength = 3 // heating length
 )
 
 const BOILER_HEATING_TRIGGER_TEMP float64 = 50 // 42
@@ -174,7 +172,7 @@ func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayP
 	}
 	b.lo.Info("HeatPump checking cheapest prices for next hours period", "from", fromIdx, "to", toIdx, "len hours", len(hours))
 
-	// get the cheapestAll 4 sequential hours from provided list. 4 hours is enough for dishwasher to finish in eco mode
+	// get the cheapestAll 3 sequential hours from provided list. 3 hours should be enough for water tank heat up
 	cheapestAll := nordpool.FindCheapestElectricityHours(hours, WaterTankHeatingLength, fromIdx, toIdx)
 	if len(cheapestAll) > 0 {
 		cheapest := cheapestAll[0]
@@ -219,6 +217,27 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 	now := time.Now()
 	nowHour := now.Hour()
 
+	// if katel is running and it is in winter mode then switch the heatpump off
+	var katelRunning = !b.EmodulIsDamped()
+	var katelInWinterMode = false
+	if katelRunning && katelInWinterMode && b.heatPumpHeating.State != "off" {
+		// TODO: switch the heatpump off
+	}
+
+	// if heatpump's water heating is running then do not heat because water is not heating otherwise
+	var atNight = nowHour >= TODAY_PM_9 && nowHour < TOMORROW_AM_7
+	var boilerTempReachedLevel = b.emodulBoilerTemp >= 48
+	if atNight && !boilerTempReachedLevel && b.heatPumpWaterTank.State == "on" && b.heatPumpHeating.State != "off" {
+		b.lo.Info("HeatPump setting heating off", "water tank running")
+		err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// else turn heatpump on or off based of current hour price
+
 	// remove the last 3 maximum hours per day and max price from there
 	ascending := nordpool.OrderHoursAscending(todayPrices)
 	lastFour := ascending[len(ascending)-4:]
@@ -231,8 +250,13 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 	}
 
 	// if current price is bigger than we allow then stop the heater
-	b.lo.Info("HeatPump set heating", "nowHour", nowHour, "currentPrice", currentPrice, "max price from today", maxPrice, "hard max price", MAX_PRICE_PER_HOUR, "ignore max price per hour", b.heapPumpHeatingIgnoreMaxPricePerHour.State)
-	if currentPrice > maxPrice || maxPriceAbove {
+	var heatingOff = (currentPrice > maxPrice) || maxPriceAbove
+	var heatingNote = "on"
+	if heatingOff {
+		heatingNote = "off"
+	}
+	b.lo.Info(fmt.Sprintf("HeatPump setting heating %v", heatingNote), "nowHour", nowHour, "currentPrice", currentPrice, "max price from today", maxPrice, "hard max price", MAX_PRICE_PER_HOUR, "ignore max price per hour", b.heapPumpHeatingIgnoreMaxPricePerHour.State)
+	if heatingOff {
 		if b.heatPumpHeating.State != "off" {
 			b.lo.Info("HeatPump", "setting heating off")
 			err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
@@ -258,24 +282,45 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	currentPrice := todayPrices[nowHour]
 
 	// check outside temperature
-	outsideTemp, err := strconv.ParseFloat(b.emodulExternalTemp.State, 32)
-	if err != nil {
-		return err
-	}
+	outsideTemp := b.emodulOutsideTemp
 	var newTemp float32 = 0
-	if outsideTemp < -10 {
+	if outsideTemp < -15 {
 		newTemp = 10
+	} else if outsideTemp < -10 {
+		newTemp = 8
 	} else if outsideTemp < -5 {
 		newTemp = 6
 	} else if outsideTemp < 0 {
 		newTemp = 4
 	}
+
+	// do not heat that much at night
+	if nowHour >= 0 {
+		if nowHour <= 4 {
+			newTemp -= 4
+		} else if nowHour <= 5 {
+			newTemp -= 2
+		}
+	}
+
+	// if water tank is running then take the heating to the lows to enable water tank heating
+	// if b.heatPumpWaterTank.State == "on" {
+	// 	newTemp = 0
+	// }
+
+	// just validate that we are not out of bounds
+	if newTemp < -10 {
+		newTemp = -10
+	} else if newTemp > 10 {
+		newTemp = 10
+	}
 	// TODO. Take into account if it's sunny day then lower the newTemp
+	// TODO. Take into account "elutuba" thermostat temp
 
 	// if current price is bigger than we allow then stop the heater
-	b.lo.Info("HeatPump temperature", "outside temperature", outsideTemp, "new temperature", newTemp, "nowHour", nowHour, "currentPrice", currentPrice)
+	b.lo.Info("HeatPump temperature", "water tank running", b.heatPumpWaterTank.State, "outside temperature", outsideTemp, "new temperature", newTemp, "nowHour", nowHour, "currentPrice", currentPrice)
 	if b.heatPumpHeatingTemp != newTemp {
-		err = heatpump.SetHeatingTemperature(b.ha, newTemp, nil)
+		err := heatpump.SetHeatingTemperature(b.ha, newTemp, nil)
 		if err != nil {
 			return err
 		}

@@ -34,8 +34,8 @@ type brain struct {
 	emodulHeatingAllowed                 bool
 	emodulControllerState                EntityState
 	emodulOperationMode                  EntityState
-	emodulExternalTemp                   EntityState
-	emodulBoilerTemp                     EntityState // example: "state": "50.4"
+	emodulOutsideTemp                    float64
+	emodulBoilerTemp                     float64
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant) Brain {
@@ -109,7 +109,7 @@ func (b *brain) updateData() error {
 	tomorrowPrices := append([]float64(nil), b.nordpoolPrices.Tomorrow...)
 
 	// heating
-	err := b.SetHeatPumpWaterTankStartStopTime(TODAY_PM_9, TOMORROW_AM_9, todayPrices, tomorrowPrices)
+	err := b.SetHeatPumpWaterTankStartStopTime(TODAY_PM_9, TOMORROW_AM_7, todayPrices, tomorrowPrices)
 	if err != nil {
 		b.errors <- err
 	}

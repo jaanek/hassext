@@ -1,6 +1,7 @@
 package brain
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/jaanek/hassext/data"
@@ -37,16 +38,26 @@ func (b *brain) Emodule(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.emodulExternalTemp = *entity
-		b.lo.Info("Emodul", "external temperature", entity)
+		outsideTemp, err := strconv.ParseFloat((*entity).State, 32) // example: "state": "5.4"
+		if err != nil {
+			b.errors <- err
+		} else {
+			b.emodulOutsideTemp = outsideTemp
+		}
+		b.lo.Info("Emodul", "outside temp", outsideTemp, "external temperature", entity)
 	}
 	// dhw (boileri) temperature
 	entity, err = ParseEntityState(string(emodul.ENTITY_BOILER_TEMPERATURE), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.emodulBoilerTemp = *entity
-		b.lo.Info("Emodul", "boiler (dhw) temperature", entity)
+		boilerTemp, err := strconv.ParseFloat((*entity).State, 32) // example: "state": "50.4"
+		if err != nil {
+			b.errors <- err
+		} else {
+			b.emodulBoilerTemp = boilerTemp
+		}
+		b.lo.Info("Emodul", "boiler temp", boilerTemp, "boiler (dhw) temperature", entity)
 	}
 }
 
