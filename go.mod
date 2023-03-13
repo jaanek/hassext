@@ -18,11 +18,13 @@ require (
 
 require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/goburrow/serial v0.1.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pelletier/go-toml v1.7.0 // indirect
+	github.com/simonvetter/modbus v1.6.0 // indirect
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.4.0 // indirect
