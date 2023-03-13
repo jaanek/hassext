@@ -1,6 +1,7 @@
 package brain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/jaanek/hassext/dishwasher"
@@ -10,8 +11,12 @@ import (
 
 // set start time for diswasher for tomorrow night
 func (b *brain) SetDishwasherStartTime(tomorrowPrices []float64) error {
+	// validate
 	if len(tomorrowPrices) <= 0 {
 		return nil
+	}
+	if len(tomorrowPrices) < 12 {
+		return fmt.Errorf("Tomorrow's electricity prices cannot be less than 12 hours. Len of hours: %v", len(tomorrowPrices))
 	}
 	n := time.Now()
 	// t1 := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, t.Nanosecond(), t.Location())

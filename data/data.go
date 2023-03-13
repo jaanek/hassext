@@ -61,7 +61,8 @@ func (d *DataValue) GetFloat64(path string, errors *Errors) float64 {
 	val, ok := d.GetObject(path).(float64)
 	if !ok {
 		// check if we can get it as int64 instead
-		iv, ok := d.GetObject(path).(int64)
+		var iv int64
+		iv, ok = d.GetObject(path).(int64)
 		if ok {
 			val = float64(iv)
 		}
