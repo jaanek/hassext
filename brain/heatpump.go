@@ -12,19 +12,19 @@ import (
 
 func (b *brain) HeatPump(state data.DataValue) {
 	// water tank automation start
-	entity, err := ParseEntityState(string(heatpump.ENTITY_WATER_TANK_START), state)
+	entity, err := ParseEntityState(string(heatpump.ENTITY_WATER_HEATER_START), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heatPumpWaterTankAutomationStart = *entity
+		b.heatPumpWaterHeaterAutomationStart = *entity
 		b.lo.Info("HeatPump", "automation water tank start", entity)
 	}
-	// water tank automation stop
-	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK_STOP), state)
+	// water heater automation stop
+	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_HEATER_STOP), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heatPumpWaterTankAutomationStop = *entity
+		b.heatPumpWaterHeaterAutomationStop = *entity
 		b.lo.Info("HeatPump", "automation water tank stop", entity)
 	}
 	// heating
@@ -33,30 +33,22 @@ func (b *brain) HeatPump(state data.DataValue) {
 		b.errors <- err
 	} else {
 		b.heatPumpHeating = *thermostat
-		b.lo.Info("HeatPump", "heating", thermostat)
+		b.lo.Info("HeatPump", "heating", *thermostat)
 	}
-	// water tank
-	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK), state)
+	// water tank/heater
+	thermostat, err = ParseThermostatState(string(heatpump.ENTITY_WATER_HEATER), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heatPumpWaterTank = *entity
-		b.lo.Info("HeatPump", "water tank", entity)
-	}
-	// water tank boost
-	entity, err = ParseEntityState(string(heatpump.ENTITY_WATER_TANK_BOOST), state)
-	if err != nil {
-		b.errors <- err
-	} else {
-		b.heatPumpWaterTankBoost = *entity
-		b.lo.Info("HeatPump", "water tank boost", entity)
+		b.heatPumpWaterHeater = *thermostat
+		b.lo.Info("HeatPump", "water heater", *thermostat)
 	}
 	// water tank start time
-	entity, err = ParseEntityState(string(heatpump.ENTITY_TIME_WATER_START), state)
+	entity, err = ParseEntityState(string(heatpump.ENTITY_TIME_WATER_HEATER_START), state)
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heatPumpWaterTankStartState = *entity
+		b.heatPumpWaterHeaterStartState = *entity
 		b.lo.Info("HeatPump", "water tank start state", entity)
 	}
 	// heating ignore max price per hour
@@ -73,32 +65,32 @@ func (b *brain) SetHeatPumpAutomationsOnOff() error {
 	var setOff = !b.EmodulIsDamped()
 	if setOff {
 		// turn off automation because katel is doing periodic heating
-		if b.heatPumpWaterTankAutomationStart.State != "off" {
+		if b.heatPumpWaterHeaterAutomationStart.State != "off" {
 			b.lo.Info("HeatPump", "katel running", setOff, "turn OFF water tank start automation")
-			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_TANK_START, homeassistant.AUTOMATION_TURN_OFF)
+			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_HEATER_START, homeassistant.AUTOMATION_TURN_OFF)
 			if err != nil {
 				b.errors <- err
 			}
 		}
-		if b.heatPumpWaterTankAutomationStop.State != "off" {
+		if b.heatPumpWaterHeaterAutomationStop.State != "off" {
 			b.lo.Info("HeatPump", "katel running", setOff, "turn OFF water tank stop automation")
-			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_TANK_STOP, homeassistant.AUTOMATION_TURN_OFF)
+			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_HEATER_STOP, homeassistant.AUTOMATION_TURN_OFF)
 			if err != nil {
 				b.errors <- err
 			}
 		}
 	} else {
 		// turn off automation because katel is doing periodic heating
-		if b.heatPumpWaterTankAutomationStart.State != "on" {
+		if b.heatPumpWaterHeaterAutomationStart.State != "on" {
 			b.lo.Info("HeatPump", "katel running", setOff, "turn ON water tank start automation")
-			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_TANK_START, homeassistant.AUTOMATION_TURN_ON)
+			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_HEATER_START, homeassistant.AUTOMATION_TURN_ON)
 			if err != nil {
 				b.errors <- err
 			}
 		}
-		if b.heatPumpWaterTankAutomationStop.State != "on" {
+		if b.heatPumpWaterHeaterAutomationStop.State != "on" {
 			b.lo.Info("HeatPump", "katel running", setOff, "turn ON water tank stop automation")
-			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_TANK_STOP, homeassistant.AUTOMATION_TURN_ON)
+			err := heatpump.Automation(b.ha, heatpump.ENTITY_WATER_HEATER_STOP, homeassistant.AUTOMATION_TURN_ON)
 			if err != nil {
 				b.errors <- err
 			}
@@ -114,6 +106,7 @@ const (
 const BOILER_HEATING_TRIGGER_TEMP float64 = 50 // 42
 const (
 	TODAY_PM_9        = 21
+	TODAY_PM_11       = 23
 	TOMORROW_MIDNIGHT = 24
 	TOMORROW_AM_7     = 31
 	TOMORROW_AM_9     = 33
@@ -186,12 +179,12 @@ func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayP
 
 		// set start time
 		start := time.Date(now.Year(), now.Month(), now.Day(), hourNr, 0, 0, 0, now.Location())
-		if b.heatPumpWaterTankStart != start {
-			err := b.ha.SetInputDateTime(string(heatpump.ENTITY_TIME_WATER_START), start, homeassistant.INPUT_TIME)
+		if b.heatPumpWaterHeaterStart != start {
+			err := b.ha.SetInputDateTime(string(heatpump.ENTITY_TIME_WATER_HEATER_START), start, homeassistant.INPUT_TIME)
 			if err != nil {
 				return err
 			}
-			b.heatPumpWaterTankStart = start
+			b.heatPumpWaterHeaterStart = start
 		}
 
 		// set end time
@@ -200,12 +193,12 @@ func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayP
 			endHourNr -= 24
 		}
 		end := time.Date(now.Year(), now.Month(), now.Day(), endHourNr, 0, 0, 0, now.Location())
-		if b.heatPumpWaterTankStop != start {
-			err := b.ha.SetInputDateTime(string(heatpump.ENTITY_TIME_WATER_STOP), end, homeassistant.INPUT_TIME)
+		if b.heatPumpWaterHeaterStop != start {
+			err := b.ha.SetInputDateTime(string(heatpump.ENTITY_TIME_WATER_HEATER_STOP), end, homeassistant.INPUT_TIME)
 			if err != nil {
 				return err
 			}
-			b.heatPumpWaterTankStop = start
+			b.heatPumpWaterHeaterStop = start
 		}
 	}
 	return nil
@@ -216,6 +209,7 @@ const MAX_PRICE_PER_HOUR float64 = 200
 func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float64) error {
 	now := time.Now()
 	nowHour := now.Hour()
+	var atNight = nowHour >= TODAY_PM_11 && nowHour < TOMORROW_AM_7
 
 	// if katel is running and it is in winter mode then switch the heatpump off
 	var katelRunning = !b.EmodulIsDamped()
@@ -224,16 +218,18 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 		// TODO: switch the heatpump off
 	}
 
-	// if heatpump's water heating is running then do not heat because water is not heating otherwise
-	var atNight = nowHour >= TODAY_PM_9 && nowHour < TOMORROW_AM_7
-	var boilerTempReachedLevel = b.emodulBoilerTemp >= 48
-	if atNight && !boilerTempReachedLevel && b.heatPumpWaterTank.State == "on" && b.heatPumpHeating.State != "off" {
-		b.lo.Info("HeatPump setting heating off", "water tank running")
-		err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
-		if err != nil {
-			return err
-		}
-		return nil
+	// if at night and heatpump's water heating is running
+	var waterHeaterRunning = b.heatPumpWaterHeater.State != "off"
+	if atNight && waterHeaterRunning {
+		// then do not heat because water is not heating otherwise
+		// if b.heatPumpHeating.State != "off" {
+		// 	b.lo.Info("HeatPump setting heating off", "water tank running")
+		// 	err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	return nil
+		// }
 	}
 
 	// else turn heatpump on or off based of current hour price
@@ -318,7 +314,7 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	// TODO. Take into account "elutuba" thermostat temp
 
 	// if current price is bigger than we allow then stop the heater
-	b.lo.Info("HeatPump temperature", "water tank running", b.heatPumpWaterTank.State, "outside temperature", outsideTemp, "new temperature", newTemp, "nowHour", nowHour, "currentPrice", currentPrice)
+	b.lo.Info("HeatPump temperature", "water tank running", b.heatPumpWaterHeater.State, "outside temperature", outsideTemp, "new temperature", newTemp, "nowHour", nowHour, "currentPrice", currentPrice)
 	if b.heatPumpHeatingTemp != newTemp {
 		err := heatpump.SetHeatingTemperature(b.ha, newTemp, nil)
 		if err != nil {

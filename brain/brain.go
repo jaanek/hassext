@@ -24,13 +24,12 @@ type brain struct {
 	heapPumpHeatingIgnoreMaxPricePerHour EntityState     // example: "on" / "off"
 	heatPumpHeating                      ThermostatState // example: "heat" / "off"
 	heatPumpHeatingTemp                  float32
-	heatPumpWaterTank                    EntityState // example: "on" / "off"
-	heatPumpWaterTankBoost               EntityState // example: "on" / "off"
-	heatPumpWaterTankStartState          EntityState // example: "03:00:00"
-	heatPumpWaterTankAutomationStart     EntityState // example: "on" / "off"
-	heatPumpWaterTankAutomationStop      EntityState // example: "on" / "off"
-	heatPumpWaterTankStart               time.Time
-	heatPumpWaterTankStop                time.Time
+	heatPumpWaterHeater                  ThermostatState // example: "on" / "off"
+	heatPumpWaterHeaterStartState        EntityState     // example: "03:00:00"
+	heatPumpWaterHeaterAutomationStart   EntityState     // example: "on" / "off"
+	heatPumpWaterHeaterAutomationStop    EntityState     // example: "on" / "off"
+	heatPumpWaterHeaterStart             time.Time
+	heatPumpWaterHeaterStop              time.Time
 	emodulHeatingAllowed                 bool
 	emodulControllerState                EntityState
 	emodulOperationMode                  EntityState

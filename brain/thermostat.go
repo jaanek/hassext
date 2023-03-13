@@ -10,6 +10,7 @@ type ThermostatState struct {
 	Id                 string  `json:"entity_id"`
 	State              string  `json:"state"`
 	CurrentTemperature float64 `json:"current_temperature"`
+	SetTemperature     float64 `json:"temperature"` // temp set on termostat
 }
 
 func ParseThermostatState(entityId string, state data.DataValue) (*ThermostatState, error) {
@@ -27,6 +28,7 @@ func ParseThermostatState(entityId string, state data.DataValue) (*ThermostatSta
 	entityData := data.NewDataValue(parent)
 	entity.State = entityData.GetString("$.state", &errors)
 	entity.CurrentTemperature = entityData.GetFloat64("$.attributes.current_temperature", &errors)
+	entity.SetTemperature = entityData.GetFloat64("$.attributes.temperature", &errors)
 	if errors.HasAny() {
 		return nil, errors.FirstError()
 	}

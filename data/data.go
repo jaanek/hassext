@@ -50,7 +50,7 @@ func (d *DataValue) GetInt64(path string, errors *Errors) int64 {
 	val, ok := d.GetObject(path).(int64)
 	if !ok {
 		if errors != nil {
-			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
+			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q, typeof val: %T", path, d.GetObject(path))))
 		}
 		return 0
 	}
@@ -60,8 +60,15 @@ func (d *DataValue) GetInt64(path string, errors *Errors) int64 {
 func (d *DataValue) GetFloat64(path string, errors *Errors) float64 {
 	val, ok := d.GetObject(path).(float64)
 	if !ok {
+		// check if we can get it as int64 instead
+		iv, ok := d.GetObject(path).(int64)
+		if ok {
+			val = float64(iv)
+		}
+	}
+	if !ok {
 		if errors != nil {
-			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
+			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q, typeof val: %T", path, d.GetObject(path))))
 		}
 		return 0
 	}
@@ -72,7 +79,7 @@ func (d *DataValue) GetString(path string, errors *Errors) string {
 	val, ok := d.GetObject(path).(string)
 	if !ok {
 		if errors != nil {
-			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
+			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q, typeof val: %T", path, d.GetObject(path))))
 		}
 		return ""
 	}
@@ -83,7 +90,7 @@ func (d *DataValue) GetBool(path string, errors *Errors) *bool {
 	val, ok := d.GetObject(path).(bool)
 	if !ok {
 		if errors != nil {
-			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q", path)))
+			*errors = append(*errors, fmt.Errorf(fmt.Sprintf("path parse failed: %q, typeof val: %T", path, d.GetObject(path))))
 		}
 		return nil
 	}
