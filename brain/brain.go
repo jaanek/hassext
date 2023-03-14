@@ -20,21 +20,25 @@ type brain struct {
 	errors                               chan error
 	nordpoolPrices                       nordpool.NordpoolPrices
 	dishwasherStart                      time.Time
-	heapPumpHeatingStart                 time.Time
+	heapPumpTriggerHeatingActive         EntityState // example: "on" / "off"
+	heapPumpTriggerWaterHeaterActive     EntityState // example: "on" / "off"
+	heapPumpTriggerWaterHeaterBoost      EntityState // example: "on" / "off"
+	heapPumpTriggerHeatingSetTemp        EntityState
 	heapPumpHeatingIgnoreMaxPricePerHour EntityState     // example: "on" / "off"
 	heatPumpHeating                      ThermostatState // example: "heat" / "off"
 	heatPumpHeatingTemp                  float32
 	heatPumpWaterHeater                  ThermostatState // example: "on" / "off"
 	heatPumpWaterHeaterStartState        EntityState     // example: "03:00:00"
-	heatPumpWaterHeaterAutomationStart   EntityState     // example: "on" / "off"
-	heatPumpWaterHeaterAutomationStop    EntityState     // example: "on" / "off"
-	heatPumpWaterHeaterStart             time.Time
-	heatPumpWaterHeaterStop              time.Time
-	emodulHeatingAllowed                 bool
-	emodulControllerState                EntityState
-	emodulOperationMode                  EntityState
-	emodulOutsideTemp                    float64
-	emodulBoilerTemp                     float64
+	heatPumpWaterHeaterStopState         EntityState     // example: "06:00:00"
+	// heatPumpWaterHeaterAutomationStart   EntityState     // example: "on" / "off"
+	// heatPumpWaterHeaterAutomationStop    EntityState     // example: "on" / "off"
+	heatPumpWaterHeaterStart time.Time
+	heatPumpWaterHeaterStop  time.Time
+	emodulHeatingAllowed     bool
+	emodulControllerState    EntityState
+	emodulOperationMode      EntityState
+	emodulOutsideTemp        float64
+	emodulBoilerTemp         float64
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant) Brain {
@@ -120,10 +124,10 @@ func (b *brain) updateData() error {
 	if err != nil {
 		b.errors <- err
 	}
-	err = b.SetHeatPumpAutomationsOnOff()
-	if err != nil {
-		b.errors <- err
-	}
+	// err = b.SetHeatPumpAutomationsOnOff()
+	// if err != nil {
+	// 	b.errors <- err
+	// }
 
 	// dishwasher
 	err = b.SetDishwasherStartTime(tomorrowPrices)

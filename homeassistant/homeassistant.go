@@ -16,6 +16,7 @@ type HomeAssistant interface {
 	Switch
 	Light
 	Climate
+	WaterHeater
 	Inputs
 	Timer
 	Counter
