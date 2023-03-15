@@ -53,10 +53,10 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		ModuleIndex:            0,
 		Cookies:                map[string]string{},
 	})
-	r := rest.NewRest(lo, em, ko.String("rest.host"), ko.Int("rest.port"), ko.String("rest.jwtSecret"))
 	sc := snapcast.New(lo, &snapcast.HttpClientParams{
 		ApiUrl: ko.String("snapcast.apiUrl"),
 	})
+	r := rest.NewRest(lo, em, sc, ko.String("rest.host"), ko.Int("rest.port"), ko.String("rest.jwtSecret"))
 	sound := sound.New(lo, hub, sc)
 	ha := homeassistant.NewHomeAssistantClient(lo, &homeassistant.HttpClientParams{
 		ApiUrl: ko.String("homeassistant.apiUrl"),
@@ -132,10 +132,18 @@ func (h *HassExt) Shutdown() {
 func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
 	return func() []mq.MessageHandler {
 		return []mq.MessageHandler{
+			// mq.NewHandler(lo, "zigbee2mqtt/Leiliruum-lights-power", func(m mqtt.Message) error {
+			// 	var payload = m.Payload()
+			// 	h.Broadcast <- hub.Message{
+			// 		Topic: sound.TopicLeiliruumLightsPower,
+			// 		Data:  payload,
+			// 	}
+			// 	return nil
+			// }),
 			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch1-stainless-4button", func(m mqtt.Message) error {
 				var payload = m.Payload()
 				h.Broadcast <- hub.Message{
-					Topic: sound.TopicLeiliruum,
+					Topic: sound.TopicLeiliruumSoundButtons,
 					Data:  payload,
 				}
 				return nil
@@ -143,7 +151,7 @@ func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
 			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch2-white-4button", func(m mqtt.Message) error {
 				var payload = m.Payload()
 				h.Broadcast <- hub.Message{
-					Topic: sound.TopicSaunaEesruum,
+					Topic: sound.TopicSaunaEesruumSoundButtons,
 					Data:  payload,
 				}
 				return nil

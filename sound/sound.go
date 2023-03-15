@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	TopicLeiliruum    = "sound-switch-leiliruum"
-	TopicSaunaEesruum = "sound-switch-sauna-eesruum"
+	TopicLeiliruumSoundButtons    = "sound-buttons-leiliruum"
+	TopicSaunaEesruumSoundButtons = "sound-buttons-sauna-eesruum"
+	ClientIdLeiliruum             = "zone-leiliruum"
 )
 
 type Sound interface {
@@ -18,12 +19,12 @@ type Sound interface {
 	Shutdown()
 }
 
-type SwitchListener interface {
+type SoundListener interface {
 	hub.Client
 	Topic() string
 }
 
-type IkeaSwitch struct {
+type IkeaButtons struct {
 	lo               logf.Logger
 	snapcast         snapcast.Snapcast
 	enabled          bool
@@ -31,11 +32,11 @@ type IkeaSwitch struct {
 	snapcastClientId string
 }
 
-func (s *IkeaSwitch) Topic() string {
+func (s *IkeaButtons) Topic() string {
 	return s.listenTopic
 }
 
-func (s *IkeaSwitch) Receive(data []byte) error {
+func (s *IkeaButtons) Receive(data []byte) error {
 	if !s.enabled {
 		s.lo.Debug("Sound switch. On data receive. Switch disabled", "topic", s.listenTopic, "name", s.snapcastClientId)
 		return nil
@@ -72,25 +73,25 @@ func (s *IkeaSwitch) Receive(data []byte) error {
 
 type sound struct {
 	hub       *hub.Hub
-	listeners []SwitchListener
+	listeners []SoundListener
 }
 
 func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast) Sound {
 	return &sound{
 		hub: h,
-		listeners: []SwitchListener{
-			&IkeaSwitch{
+		listeners: []SoundListener{
+			&IkeaButtons{
 				lo:               lo,
 				snapcast:         snapcast,
 				enabled:          true,
-				listenTopic:      TopicLeiliruum,
-				snapcastClientId: "zone-leiliruum",
+				listenTopic:      TopicLeiliruumSoundButtons,
+				snapcastClientId: ClientIdLeiliruum,
 			},
-			&IkeaSwitch{
+			&IkeaButtons{
 				lo:               lo,
 				snapcast:         snapcast,
 				enabled:          false,
-				listenTopic:      TopicSaunaEesruum,
+				listenTopic:      TopicSaunaEesruumSoundButtons,
 				snapcastClientId: "",
 			},
 		},

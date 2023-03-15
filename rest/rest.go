@@ -6,21 +6,24 @@ import (
 	"net/http"
 
 	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/snapcast"
 	"github.com/zerodha/logf"
 )
 
 type Rest struct {
 	server    *http.Server
 	em        emodul.EModul
+	sc        snapcast.Snapcast
 	lo        logf.Logger
 	host      string
 	port      int
 	jwtSecret string
 }
 
-func NewRest(lo logf.Logger, em emodul.EModul, host string, port int, jwtSecret string) *Rest {
+func NewRest(lo logf.Logger, em emodul.EModul, snapcast snapcast.Snapcast, host string, port int, jwtSecret string) *Rest {
 	return &Rest{
 		em:        em,
+		sc:        snapcast,
 		lo:        lo,
 		host:      host,
 		port:      port,

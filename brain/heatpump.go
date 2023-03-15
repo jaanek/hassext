@@ -152,8 +152,10 @@ const (
 	TOMORROW_AM_9     = 33
 )
 const LOW_PRICE_LEVEL = 30
-const TEMP_LEVEL_22 = 22
-const TEMP_LEVEL_20 = 20
+const (
+	TEMP_LEVEL_22_LOW float64 = 22.2
+	TEMP_LEVEL_20_LOW         = 20.2
+)
 
 // set start and stop time for the heat pump water tank
 func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayPrices, tomorrowPrices []float64) error {
@@ -413,18 +415,18 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	b.lo.Info("HeatPump set temperature [2]", "newtemp", newTemp, "nowHour", nowHour)
 
 	// check elutuba thermostat and decide if we need to increase the temp level
-	if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20 {
+	if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20_LOW {
 		if nowHour <= 3 {
 			newTemp += 2
 		} else {
 			newTemp += 4
 		}
-		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20, "current temperature", b.uponorElutuba.CurrentTemperature)
-	} else if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22 {
+		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
+	} else if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22_LOW {
 		if nowHour >= 5 {
 			newTemp += 2
 		}
-		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22, "current temperature", b.uponorElutuba.CurrentTemperature)
+		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
 	}
 
 	// just validate that we are not out of bounds

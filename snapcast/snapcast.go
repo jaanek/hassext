@@ -17,6 +17,7 @@ import (
 type Snapcast interface {
 	RpcCall(any) ([]byte, error)
 	GroupSetName(string, string) error
+	ClientMute(client *Client, mute bool) error
 	ClientGetStatus(clientId string) (*Client, error)
 	ClientIncVolume(clientId string, incStep int) error
 	ClientChangeStream(clientId string, up bool) error
@@ -179,25 +180,34 @@ func (s *snapcast) ClientIncVolume(clientId string, incStep int) error {
 	return nil
 }
 
+func (s *snapcast) ClientMute(client *Client, mute bool) error {
+	volume := client.Volume
+	body, err := s.RpcCall(jrpc.NewClientSetVolume(client.Id, mute, int(volume)))
+	if err != nil {
+		return err
+	}
+	_, err = jrpc.RpcParseResult(body)
+	if err != nil {
+		return err
+	}
+	muteStr := "muted"
+	if !mute {
+		muteStr = "unmuted"
+	}
+	s.lo.Info("Snapcast client", muteStr, "success", "result", string(body))
+	return nil
+}
+
 func (s *snapcast) ClientChangeStream(clientId string, up bool) error {
 	client, err := s.ClientGetStatus(clientId)
 	if err != nil {
 		return err
 	}
-	muted := client.Muted
-	volume := client.Volume
 
 	// unmute the client if muted
+	muted := client.Muted
 	if muted {
-		body, err := s.RpcCall(jrpc.NewClientSetVolume(clientId, false, int(volume)))
-		if err != nil {
-			return err
-		}
-		_, err = jrpc.RpcParseResult(body)
-		if err != nil {
-			return err
-		}
-		s.lo.Info("ClientUnmuted success", "result", string(body))
+		s.ClientMute(client, false)
 		return nil
 	}
 
