@@ -24,21 +24,20 @@ type brain struct {
 	heapPumpTriggerWaterHeaterActive     EntityState // example: "on" / "off"
 	heapPumpTriggerWaterHeaterBoost      EntityState // example: "on" / "off"
 	heapPumpTriggerHeatingSetTemp        EntityState
-	heapPumpHeatingIgnoreMaxPricePerHour EntityState     // example: "on" / "off"
-	heatPumpHeating                      ThermostatState // example: "heat" / "off"
+	heapPumpHeatingIgnoreMaxPricePerHour EntityState // example: "on" / "off"
+	heatPumpHeating                      ThermostatState
 	heatPumpHeatingTemp                  float32
-	heatPumpWaterHeater                  ThermostatState // example: "on" / "off"
-	heatPumpWaterHeaterStartState        EntityState     // example: "03:00:00"
-	heatPumpWaterHeaterStopState         EntityState     // example: "06:00:00"
-	// heatPumpWaterHeaterAutomationStart   EntityState     // example: "on" / "off"
-	// heatPumpWaterHeaterAutomationStop    EntityState     // example: "on" / "off"
-	heatPumpWaterHeaterStart time.Time
-	heatPumpWaterHeaterStop  time.Time
-	emodulHeatingAllowed     bool
-	emodulControllerState    EntityState
-	emodulOperationMode      EntityState
-	emodulOutsideTemp        float64
-	emodulBoilerTemp         float64
+	heatPumpWaterHeater                  ThermostatState
+	heatPumpWaterHeaterStartState        EntityState // example: "03:00:00"
+	heatPumpWaterHeaterStopState         EntityState // example: "06:00:00"
+	heatPumpWaterHeaterStart             time.Time
+	heatPumpWaterHeaterStop              time.Time
+	emodulHeatingAllowed                 bool
+	emodulControllerState                EntityState
+	emodulOperationMode                  EntityState
+	emodulOutsideTemp                    float64
+	emodulBoilerTemp                     float64
+	uponorElutuba                        ThermostatState // example: "off" / "heat"
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant) Brain {
@@ -95,6 +94,7 @@ func (b *brain) onDataUpdate() {
 		b.lo.Info("Timer test", "state", entity)
 	}
 
+	b.Uponor(state)
 	b.Nordpool(state)
 	b.Emodule(state)
 	b.HeatPump(state)

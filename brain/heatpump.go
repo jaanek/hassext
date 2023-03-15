@@ -152,6 +152,8 @@ const (
 	TOMORROW_AM_9     = 33
 )
 const LOW_PRICE_LEVEL = 30
+const TEMP_LEVEL_22 = 22
+const TEMP_LEVEL_20 = 20
 
 // set start and stop time for the heat pump water tank
 func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayPrices, tomorrowPrices []float64) error {
@@ -275,10 +277,16 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 	if b.heatPumpWaterHeaterStartState.State != "" {
 		t, err := time.Parse("15:04:05", b.heatPumpWaterHeaterStartState.State)
 		if err != nil {
+			return fmt.Errorf("HeatPump error while parsing start time: %w", err)
+		} else {
 			waterHeaterStartTime = &t
 		}
-		t, err = time.Parse("15:04:05", b.heatPumpWaterHeaterStopState.State)
+	}
+	if b.heatPumpWaterHeaterStopState.State != "" {
+		t, err := time.Parse("15:04:05", b.heatPumpWaterHeaterStopState.State)
 		if err != nil {
+			return fmt.Errorf("HeatPump error while parsing stop time: %w", err)
+		} else {
 			waterHeaterStopTime = &t
 		}
 	}
@@ -394,20 +402,30 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	} else if outsideTemp < 0 {
 		newTemp = 4
 	}
+	b.lo.Info("HeatPump set temperature [1]", "newTemp", newTemp, "nowHour", nowHour, "outside temp", outsideTemp)
 
 	// do not heat that much at night
-	if nowHour >= 0 {
-		if nowHour <= 4 {
-			newTemp -= 4
-		} else if nowHour <= 5 {
-			newTemp -= 2
-		}
+	if nowHour <= 4 {
+		newTemp -= 4
+	} else if nowHour <= 5 {
+		newTemp -= 2
 	}
+	b.lo.Info("HeatPump set temperature [2]", "newtemp", newTemp, "nowHour", nowHour)
 
-	// if water tank is running then take the heating to the lows to enable water tank heating
-	// if b.heatPumpWaterTank.State == "on" {
-	// 	newTemp = 0
-	// }
+	// check elutuba thermostat and decide if we need to increase the temp level
+	if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20 {
+		if nowHour <= 3 {
+			newTemp += 2
+		} else {
+			newTemp += 4
+		}
+		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20, "current temperature", b.uponorElutuba.CurrentTemperature)
+	} else if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22 {
+		if nowHour >= 5 {
+			newTemp += 2
+		}
+		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22, "current temperature", b.uponorElutuba.CurrentTemperature)
+	}
 
 	// just validate that we are not out of bounds
 	if newTemp < -10 {
@@ -415,11 +433,9 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	} else if newTemp > 10 {
 		newTemp = 10
 	}
-	// TODO. Take into account if it's sunny day then lower the newTemp
-	// TODO. Take into account "elutuba" thermostat temp
 
 	// if current price is bigger than we allow then stop the heater
-	b.lo.Info("HeatPump temperature", "water tank running", b.heatPumpWaterHeater.State, "outside temperature", outsideTemp, "new temperature", newTemp, "nowHour", nowHour, "currentPrice", currentPrice)
+	b.lo.Info("HeatPump set temperature", "newTemp", newTemp, "nowHour", nowHour, "water tank running", b.heatPumpWaterHeater.State, "outside temperature", outsideTemp, "currentPrice", currentPrice)
 	if b.heatPumpHeatingTemp != newTemp {
 		err := b.ha.SetInputNumberValue(string(heatpump.ENTITY_NUMBER_TRIGGER_HEATER_SET_TEMP), uint64(newTemp))
 		if err != nil {
