@@ -151,7 +151,10 @@ const (
 	TOMORROW_AM_7     = 31
 	TOMORROW_AM_9     = 33
 )
-const LOW_PRICE_LEVEL = 30
+const (
+	LOW_PRICE_LEVEL      = 30
+	VERY_LOW_PRICE_LEVEL = 10
+)
 const (
 	TEMP_LEVEL_22_LOW float64 = 22.2
 	TEMP_LEVEL_20_LOW         = 20.2
@@ -427,6 +430,12 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 			newTemp += 2
 		}
 		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
+	}
+
+	// check if price is cheap
+	if currentPrice < VERY_LOW_PRICE_LEVEL {
+		newTemp += 4
+		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "nowHour", nowHour, "price below", VERY_LOW_PRICE_LEVEL, "current price", currentPrice, "current temperature", b.uponorElutuba.CurrentTemperature)
 	}
 
 	// just validate that we are not out of bounds
