@@ -152,10 +152,15 @@ const (
 	TOMORROW_AM_9     = 33
 )
 const (
-	LOW_PRICE_LEVEL      = 40
-	VERY_LOW_PRICE_LEVEL = 15
+	VERY_HIGH_PRICE_LEVEL   = 200
+	PRETTY_HIGH_PRICE_LEVEL = 160
+	HIGH_PRICE_LEVEL        = 120
+	MIDDLE_PRICE_LEVEL      = 80
+	LOW_PRICE_LEVEL         = 40
+	VERY_LOW_PRICE_LEVEL    = 20
 )
 const (
+	TEMP_LEVEL_24_LOW float64 = 24.2
 	TEMP_LEVEL_22_LOW float64 = 22.2
 	TEMP_LEVEL_20_LOW         = 20.2
 )
@@ -413,35 +418,41 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	}
 	b.lo.Info("HeatPump set temperature [1]", "newTemp", newTemp, "nowHour", nowHour, "outside temp", outsideTemp)
 
-	// do not heat that much at night
-	if nowHour <= 4 {
-		newTemp -= 4
-	} else if nowHour <= 5 {
-		newTemp -= 2
-	}
-	b.lo.Info("HeatPump set temperature [2]", "newtemp", newTemp, "nowHour", nowHour)
+	isMiddlePrice := currentPrice <= MIDDLE_PRICE_LEVEL
+	isLowPrice := currentPrice <= LOW_PRICE_LEVEL
+	isVeryLowPrice := currentPrice <= VERY_LOW_PRICE_LEVEL
+	isBelow24 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_24_LOW
+	isBelow22 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22_LOW
+	isBelow20 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20_LOW
 
-	// check elutuba thermostat and decide if we need to increase the temp level
-	if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20_LOW {
-		if nowHour <= 3 {
-			newTemp += 2
-		} else {
+	// check price and thermostat
+	switch {
+	case isVeryLowPrice && isBelow24:
+		// boost the heater despite the hours
+		switch {
+		case newTemp >= 4:
+			newTemp += 4
+		default:
+			newTemp += 8
+		}
+		b.lo.Info("HeatPump set temperature [2]", "newTemp", newTemp, "nowHour", nowHour, "price below", VERY_LOW_PRICE_LEVEL, "current price", currentPrice, "current temperature", b.uponorElutuba.CurrentTemperature)
+	case isBelow20:
+		// we need to boost because it's cold inside
+		switch {
+		case isMiddlePrice:
+			newTemp += 6
+		default:
 			newTemp += 4
 		}
 		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
-	} else if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22_LOW {
-		if nowHour < 4 {
-			newTemp += 2
-		} else {
+	case isBelow22:
+		switch {
+		case isLowPrice:
+			newTemp += 6
+		default:
 			newTemp += 4
 		}
-		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
-	}
-
-	// check if price is cheap
-	if currentPrice < VERY_LOW_PRICE_LEVEL {
-		newTemp += 4
-		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "nowHour", nowHour, "price below", VERY_LOW_PRICE_LEVEL, "current price", currentPrice, "current temperature", b.uponorElutuba.CurrentTemperature)
+		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
 	}
 
 	// just validate that we are not out of bounds
