@@ -152,8 +152,8 @@ const (
 	TOMORROW_AM_9     = 33
 )
 const (
-	LOW_PRICE_LEVEL      = 30
-	VERY_LOW_PRICE_LEVEL = 10
+	LOW_PRICE_LEVEL      = 40
+	VERY_LOW_PRICE_LEVEL = 15
 )
 const (
 	TEMP_LEVEL_22_LOW float64 = 22.2
@@ -273,9 +273,6 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 
 	currentPrice := todayPrices[nowHour]
 	maxPriceAbove := currentPrice > MAX_PRICE_PER_HOUR
-	if b.heapPumpHeatingIgnoreMaxPricePerHour.State == "on" {
-		maxPriceAbove = false
-	}
 
 	// check if we need to trigger waterheater start
 	var waterHeaterStartTime, waterHeaterStopTime *time.Time
@@ -351,12 +348,19 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 		// 	}
 		// 	return nil
 		// }
+	} else if b.heapPumpTriggerWaterHeaterBoost.State == "on" {
+		// turn off also the boost because water heater is not running
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST), homeassistant.BOOLEAN_TURN_OFF)
+		if err != nil {
+			return err
+		}
 	}
 
 	// else turn heatpump on or off based of current hour price
 
 	// if current price is bigger than we allow then stop the heater
-	var heatingOff = (currentPrice > maxPrice) || maxPriceAbove
+	var ignoreMaxPriceCuts = b.heapPumpHeatingIgnoreMaxPricePerHour.State == "on"
+	var heatingOff = ((currentPrice > maxPrice) || maxPriceAbove) && !ignoreMaxPriceCuts
 	var heatingNote = "on"
 	if heatingOff {
 		heatingNote = "off"
@@ -426,8 +430,10 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 		}
 		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
 	} else if b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22_LOW {
-		if nowHour >= 5 {
+		if nowHour < 4 {
 			newTemp += 2
+		} else {
+			newTemp += 4
 		}
 		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
 	}
