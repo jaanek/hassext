@@ -452,8 +452,8 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	}
 
 	// if current price is bigger than we allow then stop the heater
-	b.lo.Info("HeatPump set temperature", "newTemp", newTemp, "nowHour", nowHour, "water tank running", b.heatPumpWaterHeater.State, "outside temperature", outsideTemp, "currentPrice", currentPrice)
-	if b.heatPumpHeatingTemp != newTemp {
+	b.lo.Info("HeatPump set temperature", "newTemp", newTemp, "heater SetTemp", b.heatPumpHeating.SetTemperature, "nowHour", nowHour, "water tank running", b.heatPumpWaterHeater.State, "outside temperature", outsideTemp, "currentPrice", currentPrice)
+	if uint64(b.heatPumpHeating.SetTemperature) != uint64(newTemp) {
 		err := b.ha.SetInputNumberValue(string(heatpump.ENTITY_NUMBER_TRIGGER_HEATER_SET_TEMP), uint64(newTemp))
 		if err != nil {
 			return err
@@ -462,7 +462,6 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 		// if err != nil {
 		// 	return err
 		// }
-		b.heatPumpHeatingTemp = newTemp
 	}
 	return nil
 }

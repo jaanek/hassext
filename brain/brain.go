@@ -26,7 +26,6 @@ type brain struct {
 	heapPumpTriggerHeatingSetTemp        EntityState
 	heapPumpHeatingIgnoreMaxPricePerHour EntityState // example: "on" / "off"
 	heatPumpHeating                      ThermostatState
-	heatPumpHeatingTemp                  float32
 	heatPumpWaterHeater                  ThermostatState
 	heatPumpWaterHeaterStartState        EntityState // example: "03:00:00"
 	heatPumpWaterHeaterStopState         EntityState // example: "06:00:00"
