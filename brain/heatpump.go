@@ -2,6 +2,7 @@ package brain
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jaanek/hassext/data"
@@ -97,6 +98,19 @@ func (b *brain) HeatPump(state data.DataValue) {
 		b.errors <- err
 	} else {
 		b.heapPumpTriggerHeatingSetTemp = *entity
+		b.lo.Info("HeatPump", "trigger heating set temp", *entity)
+	}
+	// heating temp shift
+	entity, err = ParseEntityState(string(heatpump.ENTITY_NUMBER_HEATER_TEMP_SHIFT), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		temp, err := strconv.ParseFloat((*entity).State, 32) // example: "state": "2"
+		if err != nil {
+			b.errors <- err
+		} else {
+			b.heatPumpHeatingTempShift = int32(temp)
+		}
 		b.lo.Info("HeatPump", "trigger heating set temp", *entity)
 	}
 }
@@ -460,6 +474,12 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 		newTemp = -10
 	} else if newTemp > 10 {
 		newTemp = 10
+	}
+
+	// check if there is temp shift set
+	if b.heatPumpHeatingTempShift != 0 {
+		newTemp += float32(b.heatPumpHeatingTempShift)
+		b.lo.Info("HeatPump set temperature [5]", "newTemp", newTemp, "set temp shift", b.heatPumpHeatingTempShift)
 	}
 
 	// if current price is bigger than we allow then stop the heater

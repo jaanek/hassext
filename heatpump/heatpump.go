@@ -21,6 +21,7 @@ const (
 	ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE InputEntity = "input_boolean.soojuspump_trigger_waterheater_active"
 	ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST  InputEntity = "input_boolean.soojuspump_trigger_waterheater_boost"
 	ENTITY_NUMBER_TRIGGER_HEATER_SET_TEMP  InputEntity = "input_number.soojuspump_trigger_kyte_set_temp"
+	ENTITY_NUMBER_HEATER_TEMP_SHIFT        InputEntity = "input_number.soojuspump_kyte_temp_shift"
 )
 
 type AutomationEntity string

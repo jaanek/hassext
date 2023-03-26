@@ -31,6 +31,7 @@ type brain struct {
 	heatPumpWaterHeaterStopState         EntityState // example: "06:00:00"
 	heatPumpWaterHeaterStart             time.Time
 	heatPumpWaterHeaterStop              time.Time
+	heatPumpHeatingTempShift             int32
 	emodulHeatingAllowed                 bool
 	emodulControllerState                EntityState
 	emodulOperationMode                  EntityState

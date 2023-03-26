@@ -17,7 +17,7 @@ func ParseNordpoolPrices(state data.DataValue) (*NordpoolPrices, error) {
 	entityPath := fmt.Sprintf("$[?(@.entity_id == \"%v\")]", "sensor.nordpool_mwh_ee_eur_3_10_02")
 	parent := state.GetObject(entityPath)
 	if parent == nil {
-		return nil, fmt.Errorf("Entity state not found! entity_id: %v", entityId)
+		return nil, fmt.Errorf("Nordpool Entity state not found! entity_id: %v", entityId)
 	}
 	entityData := data.NewDataValue(parent)
 	prices.State = entityData.GetString("$.state", &errors)
@@ -30,7 +30,7 @@ func ParseNordpoolPrices(state data.DataValue) (*NordpoolPrices, error) {
 	prices.Currency = entityData.GetString("$.attributes.currency", &errors)
 	prices.Country = entityData.GetString("$.attributes.country", &errors)
 	if errors.HasAny() {
-		return nil, errors
+		// return nil, errors
 	}
 	todayData := entityData.GetArray("$.attributes.today.*")
 	for _, t := range todayData {
