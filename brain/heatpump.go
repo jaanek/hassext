@@ -478,17 +478,17 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "isWinter", isWinter, "isAfternoon", isAfternoon, "current temperature", b.uponorElutuba.CurrentTemperature, "currentPrice", currentPrice)
 	}
 
+	// check if there is temp shift set
+	if b.heatPumpHeatingTempShift != 0 {
+		newTemp += float32(b.heatPumpHeatingTempShift)
+		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "set temp shift", b.heatPumpHeatingTempShift)
+	}
+
 	// just validate that we are not out of bounds
 	if newTemp < -10 {
 		newTemp = -10
 	} else if newTemp > 10 {
 		newTemp = 10
-	}
-
-	// check if there is temp shift set
-	if b.heatPumpHeatingTempShift != 0 {
-		newTemp += float32(b.heatPumpHeatingTempShift)
-		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "set temp shift", b.heatPumpHeatingTempShift)
 	}
 
 	// if current price is bigger than we allow then stop the heater
