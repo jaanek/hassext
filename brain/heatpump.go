@@ -170,6 +170,7 @@ const (
 	PRETTY_HIGH_PRICE_LEVEL = 160
 	HIGH_PRICE_LEVEL        = 120
 	MIDDLE_PRICE_LEVEL      = 80
+	MIDDLE_PRICE_LEVEL2     = 60
 	LOW_PRICE_LEVEL         = 40
 	VERY_LOW_PRICE_LEVEL    = 20
 )
@@ -416,57 +417,65 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	now := time.Now()
 	nowHour := now.Hour()
+	nowMonth := now.Month()
 	currentPrice := todayPrices[nowHour]
+	var newTemp float32 = 0
+	outsideTemp := b.emodulOutsideTemp
 
 	// check outside temperature
-	outsideTemp := b.emodulOutsideTemp
-	var newTemp float32 = 0
-	if outsideTemp < -15 {
-		newTemp = 10
-	} else if outsideTemp < -10 {
-		newTemp = 8
-	} else if outsideTemp < -5 {
-		newTemp = 6
-	} else if outsideTemp < 0 {
-		newTemp = 4
-	}
-	b.lo.Info("HeatPump set temperature [1]", "newTemp", newTemp, "nowHour", nowHour, "outside temp", outsideTemp)
+	// if outsideTemp < -15 {
+	// 	newTemp = 8
+	// } else if outsideTemp < -10 {
+	// 	newTemp = 6
+	// } else if outsideTemp < -5 {
+	// 	newTemp = 4
+	// } else if outsideTemp < 0 {
+	// 	newTemp = 2
+	// }
+	// b.lo.Info("HeatPump set temperature [1]", "newTemp", newTemp, "nowHour", nowHour, "outside temp", outsideTemp)
 
 	isMiddlePrice := currentPrice <= MIDDLE_PRICE_LEVEL
+	isMiddlePrice2 := currentPrice <= MIDDLE_PRICE_LEVEL2
 	isLowPrice := currentPrice <= LOW_PRICE_LEVEL
 	isVeryLowPrice := currentPrice <= VERY_LOW_PRICE_LEVEL
 	isBelow24 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_24_LOW
 	isBelow22 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22_LOW
 	isBelow20 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20_LOW
+	isAfternoon := nowHour > 13 && nowHour < 18
+	isWinter := nowMonth <= 4 || nowMonth >= 10
 
 	// check price and thermostat
 	switch {
 	case isVeryLowPrice && isBelow24:
 		// boost the heater despite the hours
-		switch {
-		case newTemp >= 4:
-			newTemp += 4
-		default:
-			newTemp += 8
-		}
-		b.lo.Info("HeatPump set temperature [2]", "newTemp", newTemp, "nowHour", nowHour, "price below", VERY_LOW_PRICE_LEVEL, "current price", currentPrice, "current temperature", b.uponorElutuba.CurrentTemperature)
+		newTemp = 10
+		b.lo.Info("HeatPump set temperature [1]", "newTemp", newTemp, "nowHour", nowHour, "price below", VERY_LOW_PRICE_LEVEL, "current price", currentPrice, "current temperature", b.uponorElutuba.CurrentTemperature)
 	case isBelow20:
 		// we need to boost because it's cold inside
 		switch {
-		case isMiddlePrice:
-			newTemp += 6
+		case isLowPrice:
+			newTemp = 8
 		default:
-			newTemp += 4
+			newTemp = 6
 		}
-		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
+		b.lo.Info("HeatPump set temperature [2]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_20_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
 	case isBelow22:
 		switch {
 		case isLowPrice:
-			newTemp += 6
+			newTemp = 6
 		default:
-			newTemp += 4
+			newTemp = 4
 		}
-		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
+		b.lo.Info("HeatPump set temperature [3]", "newTemp", newTemp, "nowHour", nowHour, "temp below", TEMP_LEVEL_22_LOW, "current temperature", b.uponorElutuba.CurrentTemperature)
+	case isBelow24:
+		switch {
+		// we want to heat up before the evening
+		case isWinter && isAfternoon && isMiddlePrice:
+			newTemp = 2
+		case isWinter && isAfternoon && isMiddlePrice2:
+			newTemp = 4
+		}
+		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "isWinter", isWinter, "isAfternoon", isAfternoon, "current temperature", b.uponorElutuba.CurrentTemperature, "currentPrice", currentPrice)
 	}
 
 	// just validate that we are not out of bounds
@@ -479,7 +488,7 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	// check if there is temp shift set
 	if b.heatPumpHeatingTempShift != 0 {
 		newTemp += float32(b.heatPumpHeatingTempShift)
-		b.lo.Info("HeatPump set temperature [5]", "newTemp", newTemp, "set temp shift", b.heatPumpHeatingTempShift)
+		b.lo.Info("HeatPump set temperature [4]", "newTemp", newTemp, "set temp shift", b.heatPumpHeatingTempShift)
 	}
 
 	// if current price is bigger than we allow then stop the heater
