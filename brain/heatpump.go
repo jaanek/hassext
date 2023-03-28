@@ -441,7 +441,7 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	isBelow24 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_24_LOW
 	isBelow22 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_22_LOW
 	isBelow20 := b.uponorElutuba.CurrentTemperature < TEMP_LEVEL_20_LOW
-	isAfternoon := nowHour > 13 && nowHour < 18
+	isAfternoon := nowHour >= 13 && nowHour < 18
 	isWinter := nowMonth <= 4 || nowMonth >= 10
 
 	// check price and thermostat
