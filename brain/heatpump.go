@@ -84,6 +84,14 @@ func (b *brain) HeatPump(state data.DataValue) {
 		b.heapPumpKeepWaterHeatingActive = *entity
 		b.lo.Info("HeatPump", "keep water heating active", *entity)
 	}
+	// keep water heater boost active
+	entity, err = ParseEntityState(string(heatpump.ENTITY_BOOL_KEEP_WATERHEATER_BOOST), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.heapPumpKeepWaterHeaterBoost = *entity
+		b.lo.Info("HeatPump", "keep water heater boost active", *entity)
+	}
 	// trigger water heater active
 	entity, err = ParseEntityState(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), state)
 	if err != nil {
@@ -284,6 +292,7 @@ const MAX_PRICE_PER_HOUR float64 = 200
 
 func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error {
 	var keepWaterHeatingActive = b.heapPumpKeepWaterHeatingActive.State == "on"
+	var keepWaterHeaterBoostActive = b.heapPumpKeepWaterHeaterBoost.State == "on"
 
 	// check if we need to trigger waterheater start
 	var waterHeaterStartTime, waterHeaterStopTime *time.Time
@@ -334,14 +343,14 @@ func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error
 					return err
 				}
 			}
-		} else if isInBoostMode {
+		} else if isInBoostMode && !keepWaterHeaterBoostActive {
 			b.lo.Info("HeatPump water heater running and in boost mode but it's not low price, setting back to normal", "current price", currentPrice, "hour", nowHour)
 			err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST), homeassistant.BOOLEAN_TURN_OFF)
 			if err != nil {
 				return err
 			}
 		}
-	} else if b.heapPumpTriggerWaterHeaterBoost.State == "on" {
+	} else if b.heapPumpTriggerWaterHeaterBoost.State == "on" && !keepWaterHeaterBoostActive {
 		// turn off also the boost because water heater is not running
 		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST), homeassistant.BOOLEAN_TURN_OFF)
 		if err != nil {
