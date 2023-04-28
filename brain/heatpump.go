@@ -313,7 +313,7 @@ func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error
 			if err != nil {
 				return err
 			}
-		} else {
+		} else if !keepWaterHeatingActive {
 			b.lo.Info("HeatPump trigger water heater OFF, we are NOT in the water heater schedule between start/stop", "start", start.Format("15:04:05"), "stop", stop.Format("15:04:05"), "current hour", now.Hour())
 			err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_OFF)
 			if err != nil {
