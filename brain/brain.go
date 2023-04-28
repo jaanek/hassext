@@ -20,6 +20,7 @@ type brain struct {
 	errors                               chan error
 	nordpoolPrices                       nordpool.NordpoolPrices
 	dishwasherStart                      time.Time
+	heapPumpKeepWaterHeatingActive       EntityState // example: "on" / "off"
 	heapPumpTriggerHeatingActive         EntityState // example: "on" / "off"
 	heapPumpTriggerWaterHeaterActive     EntityState // example: "on" / "off"
 	heapPumpTriggerWaterHeaterBoost      EntityState // example: "on" / "off"

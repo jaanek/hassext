@@ -76,6 +76,14 @@ func (b *brain) HeatPump(state data.DataValue) {
 		b.heapPumpTriggerHeatingActive = *entity
 		b.lo.Info("HeatPump", "trigger heating active", *entity)
 	}
+	// keep water heating active
+	entity, err = ParseEntityState(string(heatpump.ENTITY_BOOL_KEEP_WATERHEATER_ACTIVE), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.heapPumpKeepWaterHeatingActive = *entity
+		b.lo.Info("HeatPump", "keep water heating active", *entity)
+	}
 	// trigger water heater active
 	entity, err = ParseEntityState(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), state)
 	if err != nil {
@@ -274,25 +282,8 @@ func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayP
 
 const MAX_PRICE_PER_HOUR float64 = 200
 
-func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float64) error {
-	now := time.Now()
-	nowHour := now.Hour()
-	// var atNight = nowHour >= TODAY_PM_11 && nowHour < TOMORROW_AM_7
-
-	// if katel is running and it is in winter mode then switch the heatpump off
-	var katelRunning = !b.EmodulIsDamped()
-	var katelInWinterMode = false
-	if katelRunning && katelInWinterMode && b.heatPumpHeating.State != "off" {
-		// TODO: switch the heatpump off
-	}
-
-	// remove the last 3 maximum hours per day and max price from there
-	ascending := nordpool.OrderHoursAscending(todayPrices)
-	lastFour := ascending[len(ascending)-4:]
-	maxPrice := lastFour[0]
-
-	currentPrice := todayPrices[nowHour]
-	maxPriceAbove := currentPrice > MAX_PRICE_PER_HOUR
+func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error {
+	var keepWaterHeatingActive = b.heapPumpKeepWaterHeatingActive.State == "on"
 
 	// check if we need to trigger waterheater start
 	var waterHeaterStartTime, waterHeaterStopTime *time.Time
@@ -342,10 +333,6 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 				if err != nil {
 					return err
 				}
-				// err := heatpump.SetWaterHeaterMode(b.ha, homeassistant.WATER_HEATER_BOOST)
-				// if err != nil {
-				// 	return err
-				// }
 			}
 		} else if isInBoostMode {
 			b.lo.Info("HeatPump water heater running and in boost mode but it's not low price, setting back to normal", "current price", currentPrice, "hour", nowHour)
@@ -353,21 +340,7 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 			if err != nil {
 				return err
 			}
-			// err := heatpump.SetWaterHeaterMode(b.ha, homeassistant.WATER_HEATER_HEAT_PUMP)
-			// if err != nil {
-			// 	return err
-			// }
 		}
-
-		// then do not heat because water is not heating otherwise
-		// if b.heatPumpHeating.State != "off" {
-		// 	b.lo.Info("HeatPump setting heating off", "water tank running")
-		// 	err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	return nil
-		// }
 	} else if b.heapPumpTriggerWaterHeaterBoost.State == "on" {
 		// turn off also the boost because water heater is not running
 		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST), homeassistant.BOOLEAN_TURN_OFF)
@@ -376,7 +349,42 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 		}
 	}
 
-	// else turn heatpump on or off based of current hour price
+	// ensure that we keep water heating active
+	if keepWaterHeatingActive {
+		b.lo.Info("HeatPump keep water heater ON")
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_ON)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float64) error {
+	now := time.Now()
+	nowHour := now.Hour()
+	// var atNight = nowHour >= TODAY_PM_11 && nowHour < TOMORROW_AM_7
+
+	// if katel is running and it is in winter mode then switch the heatpump off
+	var katelRunning = !b.EmodulIsDamped()
+	var katelInWinterMode = false
+	if katelRunning && katelInWinterMode && b.heatPumpHeating.State != "off" {
+		// TODO: switch the heatpump off
+	}
+
+	// remove the last 3 maximum hours per day and max price from there
+	ascending := nordpool.OrderHoursAscending(todayPrices)
+	lastFour := ascending[len(ascending)-4:]
+	maxPrice := lastFour[0]
+
+	currentPrice := todayPrices[nowHour]
+	maxPriceAbove := currentPrice > MAX_PRICE_PER_HOUR
+
+	// set water heating
+	err := b.SetHeatPumpWaterHeating(nowHour, currentPrice)
+	if err != nil {
+		return err
+	}
 
 	// if current price is bigger than we allow then stop the heater
 	var ignoreMaxPriceCuts = b.heapPumpHeatingIgnoreMaxPricePerHour.State == "on"
@@ -489,6 +497,11 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 		newTemp = -10
 	} else if newTemp > 10 {
 		newTemp = 10
+	}
+
+	// if heating is off then set temp to 0 otherwise heat pump still tries to heat at some points
+	if b.heatPumpHeating.State == "off" {
+		newTemp = 0
 	}
 
 	// if current price is bigger than we allow then stop the heater

@@ -17,6 +17,7 @@ const (
 	ENTITY_TIME_WATER_HEATER_START         InputEntity = "input_datetime.soojuspump_vesi_start"
 	ENTITY_TIME_WATER_HEATER_STOP          InputEntity = "input_datetime.soojuspump_vesi_stop"
 	ENTITY_BOOL_IGNORE_MAX_PRICE_PER_HOUR  InputEntity = "input_boolean.soojuspump_kyte_ignore_max_price_per_hour"
+	ENTITY_BOOL_KEEP_WATERHEATER_ACTIVE    InputEntity = "input_boolean.soojuspump_keep_waterheater_active"
 	ENTITY_BOOL_TRIGGER_HEATING_ACTIVE     InputEntity = "input_boolean.soojuspump_trigger_kyte_active"
 	ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE InputEntity = "input_boolean.soojuspump_trigger_waterheater_active"
 	ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST  InputEntity = "input_boolean.soojuspump_trigger_waterheater_boost"
