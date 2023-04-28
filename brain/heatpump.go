@@ -333,8 +333,8 @@ func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error
 
 	// if heatpump's water heating is running and the price is low
 	var waterHeaterRunning = b.heatPumpWaterHeater.State != "off"
+	var isInBoostMode = b.heatPumpWaterHeater.State == "performance"
 	if waterHeaterRunning {
-		var isInBoostMode = b.heatPumpWaterHeater.State == "performance"
 		if currentPrice < LOW_PRICE_LEVEL {
 			if !isInBoostMode {
 				b.lo.Info("HeatPump water heater running, boosting it because it's low price", "current price", currentPrice, "hour", nowHour)
@@ -350,7 +350,7 @@ func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error
 				return err
 			}
 		}
-	} else if b.heapPumpTriggerWaterHeaterBoost.State == "on" && !keepWaterHeaterBoostActive {
+	} else if !keepWaterHeaterBoostActive {
 		// turn off also the boost because water heater is not running
 		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST), homeassistant.BOOLEAN_TURN_OFF)
 		if err != nil {
