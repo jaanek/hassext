@@ -11,6 +11,7 @@ import (
 const (
 	TopicLeiliruumSoundButtons    = "sound-buttons-leiliruum"
 	TopicSaunaEesruumSoundButtons = "sound-buttons-sauna-eesruum"
+	TopicElutubaTvSoundButtons    = "sound-buttons-elutuba-tv"
 	ClientIdLeiliruum             = "zone-leiliruum"
 )
 

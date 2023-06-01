@@ -112,6 +112,10 @@ func (b *brain) onDataUpdate() {
 func (b *brain) updateData() error {
 	todayPrices := append([]float64(nil), b.nordpoolPrices.Today...)
 	tomorrowPrices := append([]float64(nil), b.nordpoolPrices.Tomorrow...)
+	if len(todayPrices) == 0 {
+		b.lo.Warn("HeatPump", "No nordpool today prices. Todays prices is 0")
+		return nil
+	}
 
 	// heating
 	err := b.SetHeatPumpWaterTankStartStopTime(TODAY_PM_9, TOMORROW_AM_7, todayPrices, tomorrowPrices)

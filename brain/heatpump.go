@@ -189,6 +189,7 @@ const (
 	MIDDLE_PRICE_LEVEL2     = 60
 	LOW_PRICE_LEVEL         = 40
 	VERY_LOW_PRICE_LEVEL    = 20
+	ULTRA_LOW_PRICE_LEVEL   = 10
 )
 const (
 	TEMP_LEVEL_24_LOW float64 = 24.2
@@ -312,22 +313,32 @@ func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error
 			waterHeaterStopTime = &t
 		}
 	}
+	var betweenTheStartStop = false
 	if waterHeaterStartTime != nil && waterHeaterStopTime != nil {
 		now := time.Now()
 		var start, stop = *waterHeaterStartTime, *waterHeaterStopTime
-		var betweenTheStartStop = start.Hour() <= now.Hour() && stop.Hour() >= now.Hour()
-		if betweenTheStartStop {
-			b.lo.Info("HeatPump trigger water heater ON, we are in the water heater schedule between start/stop", "start", start.Format("15:04:05"), "stop", stop.Format("15:04:05"), "current hour", now.Hour())
-			err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_ON)
-			if err != nil {
-				return err
-			}
-		} else if !keepWaterHeatingActive {
-			b.lo.Info("HeatPump trigger water heater OFF, we are NOT in the water heater schedule between start/stop", "start", start.Format("15:04:05"), "stop", stop.Format("15:04:05"), "current hour", now.Hour())
-			err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_OFF)
-			if err != nil {
-				return err
-			}
+		betweenTheStartStop = start.Hour() <= now.Hour() && stop.Hour() >= now.Hour()
+	}
+	if betweenTheStartStop {
+		now := time.Now()
+		b.lo.Info("HeatPump trigger water heater ON, we are in the water heater schedule between start/stop", "start", (*waterHeaterStartTime).Format("15:04:05"), "stop", (*waterHeaterStopTime).Format("15:04:05"), "current hour", now.Hour())
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_ON)
+		if err != nil {
+			return err
+		}
+	} else if currentPrice < LOW_PRICE_LEVEL {
+		now := time.Now()
+		b.lo.Info("HeatPump trigger water heater ON, currentPrice < "+fmt.Sprintf("%d", ULTRA_LOW_PRICE_LEVEL)+" cents", "current hour", now.Hour())
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_ON)
+		if err != nil {
+			return err
+		}
+	} else if !keepWaterHeatingActive {
+		now := time.Now()
+		b.lo.Info("HeatPump trigger water heater OFF, we are NOT in the water heater schedule between start/stop nor currentPrice is not that low", "current hour", now.Hour())
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_ACTIVE), homeassistant.BOOLEAN_TURN_OFF)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -335,7 +346,7 @@ func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error
 	var waterHeaterRunning = b.heatPumpWaterHeater.State != "off"
 	var isInBoostMode = b.heatPumpWaterHeater.State == "performance"
 	if waterHeaterRunning {
-		if currentPrice < LOW_PRICE_LEVEL {
+		if currentPrice < VERY_LOW_PRICE_LEVEL {
 			if !isInBoostMode {
 				b.lo.Info("HeatPump water heater running, boosting it because it's low price", "current price", currentPrice, "hour", nowHour)
 				err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_WATERHEATER_BOOST), homeassistant.BOOLEAN_TURN_ON)
