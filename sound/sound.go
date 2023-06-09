@@ -13,6 +13,7 @@ const (
 	TopicSaunaEesruumSoundButtons = "sound-buttons-sauna-eesruum"
 	TopicElutubaTvSoundButtons    = "sound-buttons-elutuba-tv"
 	ClientIdLeiliruum             = "zone-leiliruum"
+	ClientIdSaunaEesruum          = "zone-sauna-eesruum"
 )
 
 type Sound interface {
@@ -48,6 +49,11 @@ func (s *IkeaButtons) Receive(data []byte) error {
 		return err
 	}
 	switch msg.Action {
+	case "brightness_move_up":
+		// top long press. Mute or unmute
+		s.snapcast.SendRequest(snapcast.OnOffMuteReq{
+			ClientId: s.snapcastClientId,
+		})
 	case "arrow_right_click":
 		s.snapcast.SendRequest(snapcast.IncVolumeReq{
 			ClientId: s.snapcastClientId,
@@ -59,11 +65,13 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			IncStep:  -2,
 		})
 	case "on":
+		// top single press
 		s.snapcast.SendRequest(snapcast.ChangeStreamReq{
 			ClientId: s.snapcastClientId,
 			Up:       true,
 		})
 	case "off":
+		// bottom single press
 		s.snapcast.SendRequest(snapcast.ChangeStreamReq{
 			ClientId: s.snapcastClientId,
 			Up:       false,
@@ -91,9 +99,9 @@ func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast) Sound {
 			&IkeaButtons{
 				lo:               lo,
 				snapcast:         snapcast,
-				enabled:          false,
+				enabled:          true,
 				listenTopic:      TopicSaunaEesruumSoundButtons,
-				snapcastClientId: "",
+				snapcastClientId: ClientIdSaunaEesruum,
 			},
 		},
 	}

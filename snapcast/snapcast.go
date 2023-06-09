@@ -257,6 +257,22 @@ func (s *snapcast) ClientChangeStream(clientId string, up bool) error {
 	return nil
 }
 
+func (s *snapcast) ClientOnOffMute(clientId string) error {
+	client, err := s.ClientGetStatus(clientId)
+	if err != nil {
+		return err
+	}
+
+	// unmute the client if muted
+	muted := client.Muted
+	if muted {
+		s.ClientMute(client, false)
+	} else {
+		s.ClientMute(client, true)
+	}
+	return nil
+}
+
 func (s *snapcast) SendRequest(req any) {
 	s.requests <- req
 }
@@ -290,6 +306,7 @@ func (s *snapcast) Run(ctx context.Context) {
 		// wait next tick
 		select {
 		case action := <-s.requests:
+			s.lo.Info(fmt.Sprintf("Processing queue request: %v", action))
 			err := s.processRequest(action)
 			if err != nil {
 				s.lo.Error("Processing queue request", "error", err)

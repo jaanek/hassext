@@ -10,8 +10,14 @@ type ChangeStreamReq struct {
 	Up       bool
 }
 
+type OnOffMuteReq struct {
+	ClientId string
+}
+
 func (s *snapcast) processRequest(req any) error {
 	switch r := req.(type) {
+	case OnOffMuteReq:
+		return s.ClientOnOffMute(r.ClientId)
 	case IncVolumeReq:
 		return s.ClientIncVolume(r.ClientId, r.IncStep)
 	case ChangeStreamReq:
