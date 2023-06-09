@@ -10,7 +10,7 @@ type Inputs interface {
 	SetInputBoolean(string, BooleanAction) error
 	SetInputButton(string, ButtonAction) error
 	SetInputTextValue(string, string) error
-	SetInputNumberValue(string, uint64) error
+	SetInputNumberValue(string, int64) error
 	SetInputNumber(string, NumberAction) error
 }
 
@@ -112,10 +112,10 @@ func (m *homeassistant) SetInputTextValue(entityId string, value string) error {
 	return nil
 }
 
-func (m *homeassistant) SetInputNumberValue(entityId string, value uint64) error {
+func (m *homeassistant) SetInputNumberValue(entityId string, value int64) error {
 	var req = struct {
 		EntityId string `json:"entity_id"`
-		Value    uint64 `json:"value"`
+		Value    int64  `json:"value"`
 	}{
 		EntityId: entityId,
 		Value:    value,

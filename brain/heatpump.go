@@ -415,29 +415,27 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 	}
 	b.lo.Info(fmt.Sprintf("HeatPump setting heating %v", heatingNote), "nowHour", nowHour, "currentPrice", currentPrice, "max price from today", maxPrice, "hard max price", MAX_PRICE_PER_HOUR, "ignore max price per hour", b.heapPumpHeatingIgnoreMaxPricePerHour.State)
 	if heatingOff {
-		if b.heatPumpHeating.State != "off" {
-			b.lo.Info("HeatPump", "setting heating off")
-			err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_HEATING_ACTIVE), homeassistant.BOOLEAN_TURN_OFF)
-			if err != nil {
-				return err
-			}
-			// err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
-			// if err != nil {
-			// 	return err
-			// }
+		// if b.heatPumpHeating.State != "off" {}
+		b.lo.Info("HeatPump", "setting heating off")
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_HEATING_ACTIVE), homeassistant.BOOLEAN_TURN_OFF)
+		if err != nil {
+			return err
 		}
+		// err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_OFF)
+		// if err != nil {
+		// 	return err
+		// }
 	} else {
-		if b.heatPumpHeating.State != "heat" {
-			b.lo.Info("HeatPump", "setting heating on")
-			err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_HEATING_ACTIVE), homeassistant.BOOLEAN_TURN_ON)
-			if err != nil {
-				return err
-			}
-			// err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_HEAT)
-			// if err != nil {
-			// 	return err
-			// }
+		// if b.heatPumpHeating.State != "heat" {}
+		b.lo.Info("HeatPump", "setting heating on")
+		err := b.ha.SetInputBoolean(string(heatpump.ENTITY_BOOL_TRIGGER_HEATING_ACTIVE), homeassistant.BOOLEAN_TURN_ON)
+		if err != nil {
+			return err
 		}
+		// err := heatpump.SetHeating(b.ha, homeassistant.CLIMATE_HEAT)
+		// if err != nil {
+		// 	return err
+		// }
 	}
 	return nil
 }
@@ -527,7 +525,7 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	// if current price is bigger than we allow then stop the heater
 	b.lo.Info("HeatPump set temperature", "newTemp", newTemp, "heater SetTemp", b.heatPumpHeating.SetTemperature, "nowHour", nowHour, "water tank running", b.heatPumpWaterHeater.State, "outside temperature", outsideTemp, "currentPrice", currentPrice)
 	if uint64(b.heatPumpHeating.SetTemperature) != uint64(newTemp) {
-		err := b.ha.SetInputNumberValue(string(heatpump.ENTITY_NUMBER_TRIGGER_HEATER_SET_TEMP), uint64(newTemp))
+		err := b.ha.SetInputNumberValue(string(heatpump.ENTITY_NUMBER_TRIGGER_HEATER_SET_TEMP), int64(newTemp))
 		if err != nil {
 			return err
 		}
