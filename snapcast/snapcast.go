@@ -21,6 +21,7 @@ type Snapcast interface {
 	ClientGetStatus(clientId string) (*Client, error)
 	ClientIncVolume(clientId string, incStep int) error
 	ClientChangeStream(clientId string, up bool) error
+	ClientMuteOnOff(clientId string) error
 	SendRequest(any)
 	Run(context.Context)
 }
@@ -257,7 +258,7 @@ func (s *snapcast) ClientChangeStream(clientId string, up bool) error {
 	return nil
 }
 
-func (s *snapcast) ClientOnOffMute(clientId string) error {
+func (s *snapcast) ClientMuteOnOff(clientId string) error {
 	client, err := s.ClientGetStatus(clientId)
 	if err != nil {
 		return err

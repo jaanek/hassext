@@ -51,7 +51,7 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	switch msg.Action {
 	case "brightness_move_up":
 		// top long press. Mute or unmute
-		s.snapcast.SendRequest(snapcast.OnOffMuteReq{
+		s.snapcast.SendRequest(snapcast.MuteOnOffReq{
 			ClientId: s.snapcastClientId,
 		})
 	case "arrow_right_click":
