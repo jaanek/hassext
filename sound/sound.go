@@ -40,7 +40,7 @@ func (s *IkeaButtons) Topic() string {
 
 func (s *IkeaButtons) Receive(data []byte) error {
 	if !s.enabled {
-		s.lo.Debug("Sound switch. On data receive. Switch disabled", "topic", s.listenTopic, "name", s.snapcastClientId)
+		s.lo.Info("Sound switch. On data receive. Switch disabled", "topic", s.listenTopic, "name", s.snapcastClientId)
 		return nil
 	}
 	msg := &IkeaSwitchMessage{}
