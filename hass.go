@@ -156,6 +156,14 @@ func MessageHandlers(lo logf.Logger, h *hub.Hub) func() []mq.MessageHandler {
 				}
 				return nil
 			}),
+			mq.NewHandler(lo, "zigbee2mqtt/Ikea-switch3-white-4button", func(m mqtt.Message) error {
+				var payload = m.Payload()
+				h.Broadcast <- hub.Message{
+					Topic: sound.TopicElutubaTvSoundButtons,
+					Data:  payload,
+				}
+				return nil
+			}),
 		}
 	}
 }

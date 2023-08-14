@@ -14,6 +14,7 @@ const (
 	TopicElutubaTvSoundButtons    = "sound-buttons-elutuba-tv"
 	ClientIdLeiliruum             = "zone-leiliruum"
 	ClientIdSaunaEesruum          = "zone-sauna-eesruum"
+	ClientIdElutubaTv             = "zone-elutuba"
 )
 
 type Sound interface {
@@ -102,6 +103,13 @@ func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast) Sound {
 				enabled:          true,
 				listenTopic:      TopicSaunaEesruumSoundButtons,
 				snapcastClientId: ClientIdSaunaEesruum,
+			},
+			&IkeaButtons{
+				lo:               lo,
+				snapcast:         snapcast,
+				enabled:          true,
+				listenTopic:      TopicElutubaTvSoundButtons,
+				snapcastClientId: ClientIdElutubaTv,
 			},
 		},
 	}
