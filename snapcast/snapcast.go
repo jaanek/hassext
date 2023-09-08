@@ -22,7 +22,7 @@ type Snapcast interface {
 	ClientIncVolume(clientId string, incStep int) error
 	ClientChangeStream(clientId string, up bool) error
 	ClientMuteOnOff(clientId string) error
-	SendRequest(any)
+	SendRequest(Request)
 	Run(context.Context)
 }
 
@@ -58,7 +58,7 @@ type snapcast struct {
 	http     httpclient.HttpClient
 	params   *HttpClientParams
 	errors   chan error
-	requests chan any
+	requests chan Request
 	Status   ServerStatus
 }
 
@@ -72,7 +72,7 @@ func New(lo logf.Logger, params *HttpClientParams) Snapcast {
 		http:     httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay),
 		params:   params,
 		errors:   make(chan error, 10),
-		requests: make(chan any, 10),
+		requests: make(chan Request, 10),
 		Status: ServerStatus{
 			Groups:         map[string]*Group{},
 			Clients:        map[string]*Client{},
@@ -274,7 +274,7 @@ func (s *snapcast) ClientMuteOnOff(clientId string) error {
 	return nil
 }
 
-func (s *snapcast) SendRequest(req any) {
+func (s *snapcast) SendRequest(req Request) {
 	s.requests <- req
 }
 
