@@ -258,6 +258,44 @@ func (s *snapcast) ClientChangeStream(clientId string, up bool) error {
 	return nil
 }
 
+func (s *snapcast) ClientSetDefaultStream(clientId string, streamId string) error {
+	// change the group stream
+	cachedClient := s.Status.Clients[clientId]
+	if cachedClient == nil {
+		return fmt.Errorf("No cached client found! Client id: %s", clientId)
+	}
+	cachedGroup := cachedClient.Group
+	group, err := s.GroupGetStatus(cachedGroup.Id)
+	if err != nil {
+		return err
+	}
+	streams := s.Status.PlayingStreams
+
+	// verify that we find the specified stream id
+	idx := -1
+	for i := 0; i < len(streams); i++ {
+		stream := streams[i]
+		if streamId == stream.Id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("No specified default streamId found! Stream id: %s, Client id: %s", streamId, clientId)
+	}
+	nextStream := streams[idx]
+	body, err := s.RpcCall(jrpc.NewGroupSetStream(group.Id, nextStream.Id))
+	if err != nil {
+		return err
+	}
+	_, err = jrpc.RpcParseResult(body)
+	if err != nil {
+		return err
+	}
+	s.lo.Info("GroupSetStream success", "result", string(body))
+	return nil
+}
+
 func (s *snapcast) ClientMuteOnOff(clientId string) error {
 	client, err := s.ClientGetStatus(clientId)
 	if err != nil {

@@ -51,9 +51,26 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	}
 	switch msg.Action {
 	case "brightness_move_up":
-		// top long press. Mute or unmute
+		// "top" long press. Mute or unmute
 		s.snapcast.SendRequest(snapcast.MuteOnOffReq{
 			ClientId: s.snapcastClientId,
+		})
+	case "brightness_move_down":
+		// "down" long press. Set default stream channel
+		var streamId = ""
+		switch s.snapcastClientId {
+		case ClientIdLeiliruum:
+			streamId = "SpaMusic"
+		case ClientIdSaunaEesruum:
+			streamId = "BirdRelaxMusic"
+		case ClientIdElutubaTv:
+			streamId = "SkyPlus"
+		default:
+			streamId = "SkyPlus"
+		}
+		s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
+			ClientId: s.snapcastClientId,
+			StreamId: streamId,
 		})
 	case "arrow_right_click":
 		s.snapcast.SendRequest(snapcast.IncVolumeReq{
