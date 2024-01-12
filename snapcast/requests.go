@@ -40,15 +40,6 @@ func (r SetDefaultChannelReq) GetClientID() string {
 }
 
 func (s *snapcast) processRequest(req Request) error {
-	// first check if client is muted, if so then first action behaves as unmute
-	client, err := s.ClientGetStatus(req.GetClientID())
-	if err != nil {
-		return err
-	}
-	if client.Muted {
-		return s.ClientMute(client, false)
-	}
-
 	// client is on now check the action
 	switch r := req.(type) {
 	case MuteOnOffReq:

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -62,7 +62,7 @@ func HandleOAuthResponse(rest *Rest) http.HandlerFunc {
 			HttpError(rest.lo, w, r, http.StatusUnauthorized, errors.New(fmt.Sprintf("Unknown service key in state: %v", state.Service)))
 			return
 		}
-		exchangeToken, err := oauth2.ExchangeToken(state, service, code, "https://auth.coldborecapital.com")
+		exchangeToken, err := oauth2.ExchangeToken(state, service, code, "https://auth.oja.me")
 		if err != nil {
 			HttpError(rest.lo, w, r, http.StatusUnauthorized, err)
 			return
@@ -90,7 +90,7 @@ func HandleOAuthResponse(rest *Rest) http.HandlerFunc {
 			return
 		}
 		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return
 		}

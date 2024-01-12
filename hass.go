@@ -7,6 +7,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/jaanek/hassext/brain"
+	"github.com/jaanek/hassext/chromecast"
 	"github.com/jaanek/hassext/emodul"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/hub"
@@ -19,16 +20,17 @@ import (
 )
 
 type HassExt struct {
-	opts     *Options
-	Lo       logf.Logger
-	Hub      *hub.Hub
-	Mq       mq.MqttClient
-	Emodul   emodul.EModul
-	Snapcast snapcast.Snapcast
-	Rest     *rest.Rest
-	Sound    sound.Sound
-	HA       homeassistant.HomeAssistant
-	Brain    brain.Brain
+	opts        *Options
+	Lo          logf.Logger
+	Hub         *hub.Hub
+	Mq          mq.MqttClient
+	Emodul      emodul.EModul
+	Snapcast    snapcast.Snapcast
+	Rest        *rest.Rest
+	Sound       sound.Sound
+	HA          homeassistant.HomeAssistant
+	Brain       brain.Brain
+	Chromecasts chromecast.Chromecasts
 }
 
 // init home assistant integration
@@ -57,7 +59,8 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		ApiUrl: ko.String("snapcast.apiUrl"),
 	})
 	r := rest.NewRest(lo, em, sc, ko.String("rest.host"), ko.Int("rest.port"), ko.String("rest.jwtSecret"))
-	sound := sound.New(lo, hub, sc)
+	chromecasts := chromecast.NewDevices(lo, "", ko.Strings("chromecast.devices"))
+	sound := sound.New(lo, hub, sc, chromecasts)
 	ha := homeassistant.NewHomeAssistantClient(lo, &homeassistant.HttpClientParams{
 		ApiUrl: ko.String("homeassistant.apiUrl"),
 		Token:  ko.String("homeassistant.token"),
@@ -65,16 +68,17 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	brain := brain.NewBrain(lo, ha)
 
 	return &HassExt{
-		opts:     opts,
-		Lo:       lo,
-		Hub:      hub,
-		Mq:       mq,
-		Emodul:   em,
-		Snapcast: sc,
-		Rest:     r,
-		Sound:    sound,
-		HA:       ha,
-		Brain:    brain,
+		opts:        opts,
+		Lo:          lo,
+		Hub:         hub,
+		Mq:          mq,
+		Emodul:      em,
+		Snapcast:    sc,
+		Rest:        r,
+		Sound:       sound,
+		HA:          ha,
+		Brain:       brain,
+		Chromecasts: chromecasts,
 	}, nil
 }
 
@@ -113,6 +117,11 @@ func (h *HassExt) Run(ctx context.Context) error {
 		h.Emodul.Start(ctx)
 	}()
 
+	// Connect & keep connections to defined chromecasts
+	go func() {
+		h.Chromecasts.Start(ctx)
+	}()
+
 	// Start rest server api
 	go func() {
 		h.Rest.Start(ctx)
@@ -125,6 +134,7 @@ func (h *HassExt) Shutdown() {
 	h.Lo.Info("Hass shutting down ...")
 	// h.Sound.Shutdown()
 	h.Mq.Disconnect()
+	h.Chromecasts.Stop(context.Background())
 	h.Rest.Shutdown(context.Background())
 	h.Lo.Info("Hass shutdown success")
 }
