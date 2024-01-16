@@ -2,6 +2,7 @@ package sound
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/jaanek/hassext/chromecast"
 	"github.com/jaanek/hassext/hub"
@@ -64,6 +65,7 @@ func (s *IkeaButtons) Receive(data []byte) error {
 		}
 		if client.Muted {
 			if s.snapcastClientId == ClientIdElutubaTv {
+				// set starting volume
 				var cc = s.chromecasts.ChromecastByDeviceName(chromecast.LIVING_ROOM_JBL)
 				if cc != nil {
 					var err = cc.SetVolume(chromecastVolumeStart)
@@ -72,6 +74,17 @@ func (s *IkeaButtons) Receive(data []byte) error {
 					}
 				} else {
 					s.lo.Warn(s.prefix+"Living room chromecast not found", "chromecast name", chromecast.LIVING_ROOM_JBL)
+				}
+				// if morning (6am-9am) then set skyplus
+				now := time.Now()
+				morningStart := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
+				morningEnd := time.Date(now.Year(), now.Month(), now.Day(), 9, 30, 0, 0, now.Location())
+				if now.After(morningStart) && now.Before(morningEnd) {
+					var streamId = "SkyPlus"
+					s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
+						ClientId: s.snapcastClientId,
+						StreamId: streamId,
+					})
 				}
 			}
 			return true, s.snapcast.ClientMute(client, false)
@@ -106,6 +119,42 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			streamId = "SkyPlus"
 		default:
 			streamId = "SkyPlus"
+		}
+		s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
+			ClientId: s.snapcastClientId,
+			StreamId: streamId,
+		})
+	case "arrow_left_hold":
+		var wasMuted, err = unmuteIfMuted()
+		if err != nil || wasMuted {
+			return err
+		}
+		// "left" long press. Set stream channel
+		var streamId = ""
+		switch s.snapcastClientId {
+		case ClientIdElutubaTv:
+			streamId = "BluetoothHome"
+		}
+		if streamId == "" {
+			return nil
+		}
+		s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
+			ClientId: s.snapcastClientId,
+			StreamId: streamId,
+		})
+	case "arrow_right_hold":
+		var wasMuted, err = unmuteIfMuted()
+		if err != nil || wasMuted {
+			return err
+		}
+		// "right" long press. Set stream channel
+		var streamId = ""
+		switch s.snapcastClientId {
+		case ClientIdElutubaTv:
+			streamId = "RetroFM"
+		}
+		if streamId == "" {
+			return nil
 		}
 		s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
 			ClientId: s.snapcastClientId,
