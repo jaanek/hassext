@@ -55,13 +55,13 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	}
 	s.lo.Info(s.prefix+"Message received", "msg", msg)
 	const chromecastVolumeStep = 0.03999999910593033 // got from: "stepInterval\":0.03999999910593033
-	const chromecastVolumeStart = 0.35
+	const chromecastVolumeStart = 0.31
 
 	// first check if client is muted, if so then first action behaves as unmute
-	var unmuteIfMuted = func() (bool, error) {
+	var unmuteIfMuted = func() (*snapcast.Client, bool, error) {
 		client, err := s.snapcast.ClientGetStatus(s.snapcastClientId)
 		if err != nil {
-			return false, err
+			return client, false, err
 		}
 		if client.Muted {
 			if s.snapcastClientId == ClientIdElutubaTv {
@@ -87,15 +87,23 @@ func (s *IkeaButtons) Receive(data []byte) error {
 					})
 				}
 			}
-			return true, s.snapcast.ClientMute(client, false)
+			return client, true, s.snapcast.ClientMute(client, false)
 		}
-		return false, nil
+		return client, false, nil
 	}
 
 	// check which action to take
 	switch msg.Action {
+	// remote new
+	case "play_pause":
+		var client, wasMuted, err = unmuteIfMuted()
+		if err != nil || wasMuted {
+			return err
+		}
+		return s.snapcast.ClientMute(client, true)
+	// remote old
 	case "brightness_move_up":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -104,7 +112,7 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 		})
 	case "brightness_move_down":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -124,8 +132,10 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			StreamId: streamId,
 		})
+	case "volume_down_hold":
+		fallthrough
 	case "arrow_left_hold":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -142,8 +152,10 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			StreamId: streamId,
 		})
+	case "volume_up_hold":
+		fallthrough
 	case "arrow_right_hold":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -151,7 +163,7 @@ func (s *IkeaButtons) Receive(data []byte) error {
 		var streamId = ""
 		switch s.snapcastClientId {
 		case ClientIdElutubaTv:
-			streamId = "RetroFM"
+			streamId = "SkyPlus"
 		}
 		if streamId == "" {
 			return nil
@@ -160,8 +172,10 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			StreamId: streamId,
 		})
+	case "volume_up":
+		fallthrough
 	case "arrow_right_click":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -182,8 +196,10 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				IncStep:  2,
 			})
 		}
+	case "volume_down":
+		fallthrough
 	case "arrow_left_click":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -204,8 +220,12 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				IncStep:  -2,
 			})
 		}
+	case "track_previous":
+		fallthrough
+	case "dots_1_initial_press":
+		fallthrough
 	case "on":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
@@ -214,8 +234,12 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			Up:       true,
 		})
+	case "track_next":
+		fallthrough
+	case "dots_2_initial_press":
+		fallthrough
 	case "off":
-		var wasMuted, err = unmuteIfMuted()
+		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
 		}
