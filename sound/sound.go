@@ -95,6 +95,8 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	// check which action to take
 	switch msg.Action {
 	// remote new
+	case "toggle": // in new update versions is this
+		fallthrough
 	case "play_pause":
 		var client, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
