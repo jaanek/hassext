@@ -95,7 +95,7 @@ func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams)
 	return &emodul{
 		lo:               lo,
 		mq:               mq,
-		http:             httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay),
+		http:             httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay, false),
 		params:           params,
 		errors:           make(chan error, 10),
 		dataUpdate:       make(chan struct{}, 1),
@@ -253,7 +253,7 @@ func (m *emodul) fetchData() error {
 	var url = m.params.ApiUrl + "/users/" + strconv.FormatInt(int64(m.params.UserId), 10) + "/modules/" + m.params.ModuleHash
 	body, err := m.Get(url, func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
-	}, httpclient.HttpRespCallback)
+	}, httpclient.HttpGetRespCallback)
 	if err != nil {
 		return fmt.Errorf("http post error: %w", err)
 	}
@@ -405,8 +405,9 @@ func (m *emodul) sendControlData(req HttpControlData, prefix string) error {
 	}
 	body, err := m.Post(m.params.FrontendUrl+"/frontend/send_control_data", data, func(req *httpclient.Request) {
 		m.params.SetCookies(req)
-	}, func(resp *http.Response) {
+	}, func(resp *http.Response) ([]byte, error) {
 		m.params.SaveCookies(resp)
+		return nil, nil
 	})
 	if err != nil {
 		return fmt.Errorf("http post error: %w", err)
@@ -425,7 +426,7 @@ func (m *emodul) Get(url string, setReq func(req *httpclient.Request), getResp f
 	return httpclient.Get(m.http, url, setReq, getResp)
 }
 
-func (m *emodul) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
+func (m *emodul) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response) ([]byte, error)) ([]byte, error) {
 	return httpclient.Post(m.http, url, data, setReq, getResp)
 }
 

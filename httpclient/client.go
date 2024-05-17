@@ -3,14 +3,14 @@ package httpclient
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"time"
 )
 
-func New(retry RetryCheck, waitDelay RetryWaitDelay) HttpClient {
-	return &httpClient{
+func New(retry RetryCheck, waitDelay RetryWaitDelay, debugWire bool) HttpClient {
+	var hc = &httpClient{
 		client: http.Client{
 			Timeout: time.Second * 5 * 60,
 		},
@@ -18,6 +18,12 @@ func New(retry RetryCheck, waitDelay RetryWaitDelay) HttpClient {
 		RetryCheck:     retry,
 		RetryWaitDelay: waitDelay,
 	}
+	if debugWire {
+		hc.client.Transport = &loggingTransport{
+			Transport: http.DefaultTransport,
+		}
+	}
+	return hc
 }
 
 func DefaultRetryCheckPolicy() RetryCheck {
@@ -71,6 +77,28 @@ func DefaultRetryWaitDelay(attemptNum int, resp *http.Response) (waitDelay time.
 	// }
 }
 
+type loggingTransport struct {
+	Transport http.RoundTripper
+}
+
+func (t *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to log it
+	reqBody, _ := httputil.DumpRequestOut(req, true)
+	fmt.Printf("Request:\n%s\n", string(reqBody))
+
+	// Perform the actual request
+	resp, err := t.Transport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Clone the response to log it
+	respBody, _ := httputil.DumpResponse(resp, true)
+	fmt.Printf("Response:\n%s\n", string(respBody))
+
+	return resp, nil
+}
+
 type HttpClient interface {
 	Post(url, contentType string, body io.ReadSeeker) (resp *http.Response, err error)
 	Get(url string) (resp *http.Response, err error)
@@ -98,7 +126,7 @@ type Request struct {
 func NewRequest(method, url string, body io.ReadSeeker) (*Request, error) {
 	var rcBody io.ReadCloser
 	if body != nil {
-		rcBody = ioutil.NopCloser(body)
+		rcBody = io.NopCloser(body)
 	}
 
 	httpReq, err := http.NewRequest(method, url, rcBody)
@@ -185,7 +213,7 @@ var respReadLimit = int64(4096)
 
 func (c *httpClient) drainBody(body io.ReadCloser) {
 	defer body.Close()
-	_, err := io.Copy(ioutil.Discard, io.LimitReader(body, respReadLimit))
+	_, err := io.Copy(io.Discard, io.LimitReader(body, respReadLimit))
 	if err != nil {
 		log.Printf("[ERR] error draining response body: %v", err)
 	}

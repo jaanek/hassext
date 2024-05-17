@@ -41,7 +41,7 @@ type HttpClientParams struct {
 func NewHomeAssistantClient(lo logf.Logger, params *HttpClientParams) HomeAssistant {
 	return &homeassistant{
 		lo:     lo,
-		http:   httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay),
+		http:   httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay, false),
 		params: params,
 	}
 }
@@ -54,7 +54,7 @@ func (m *homeassistant) FetchData() error {
 	// fetch entity states
 	body, err := m.Get(m.params.ApiUrl+"/states", func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
-	}, httpclient.HttpRespCallback)
+	}, httpclient.HttpGetRespCallback)
 	if err != nil {
 		return fmt.Errorf("http post error: %w", err)
 	}
@@ -75,12 +75,13 @@ func (m *homeassistant) callService(domain string, service string, input any) er
 	var respErr error
 	body, err := m.Post(m.params.ApiUrl+"/services/"+domain+"/"+service, params, func(req *httpclient.Request) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.params.Token))
-	}, func(resp *http.Response) {
+	}, func(resp *http.Response) ([]byte, error) {
 		// https://developers.home-assistant.io/docs/api/rest/
 		var ok = resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated
 		if !ok {
 			respErr = fmt.Errorf("HomeAssistant rest callService failed! Response code: %v, status: %v", resp.StatusCode, resp.Status)
 		}
+		return nil, nil
 	})
 	if err != nil || respErr != nil {
 		return fmt.Errorf("http post error: %w, %w, body: %v", err, respErr, string(body))
@@ -93,6 +94,6 @@ func (m *homeassistant) Get(url string, setReq func(req *httpclient.Request), ge
 	return httpclient.Get(m.http, url, setReq, getResp)
 }
 
-func (m *homeassistant) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response)) ([]byte, error) {
+func (m *homeassistant) Post(url string, data []byte, setReq func(req *httpclient.Request), getResp func(resp *http.Response) ([]byte, error)) ([]byte, error) {
 	return httpclient.Post(m.http, url, data, setReq, getResp)
 }

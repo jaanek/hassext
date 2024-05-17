@@ -14,6 +14,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/gogo/protobuf/proto"
 	pb "github.com/jaanek/hassext/chromecast/proto"
+	"github.com/jaanek/hassext/jblbar"
 	"github.com/pkg/errors"
 	"github.com/zerodha/logf"
 )
@@ -55,6 +56,7 @@ type Chromecast interface {
 	SetVolume(value float32) error
 	SetMuted(value bool) error
 	GetReceiverStatus() (*ReceiverStatusResponse, error)
+	CallCommand(command jblbar.Command, value *jblbar.CommandPayload, result any) error
 }
 
 type cc struct {
@@ -66,6 +68,7 @@ type cc struct {
 	recvMsgChan       chan *pb.CastMessage
 	resultChanMap     map[uint64]chan *pb.CastMessage // Internal mapping of request id to result channel
 	closeChanOnce     sync.Once
+	jblBar            jblbar.JblBar
 }
 
 func New(log logf.Logger, entry CastDNSEntry) Chromecast {
@@ -75,6 +78,7 @@ func New(log logf.Logger, entry CastDNSEntry) Chromecast {
 		entry:         entry,
 		recvMsgChan:   make(chan *pb.CastMessage, 5),
 		resultChanMap: make(map[uint64]chan *pb.CastMessage),
+		jblBar:        jblbar.New(log, "http://"+entry.GetAddr()),
 	}
 }
 
@@ -169,6 +173,10 @@ func (c *cc) GetReceiverStatus() (*ReceiverStatusResponse, error) {
 		return nil, err
 	}
 	return parseReceiverStatus(apiMessage)
+}
+
+func (c *cc) CallCommand(command jblbar.Command, value *jblbar.CommandPayload, result any) error {
+	return c.jblBar.CallCommand(command, value, result)
 }
 
 func (c *cc) getNextRequestId() uint64 {

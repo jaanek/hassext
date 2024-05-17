@@ -2,12 +2,15 @@ package httpclient
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
-func HttpReqCallback(req *Request)         {}
-func HttpRespCallback(resp *http.Response) {}
+func HttpReqCallback(req *Request)            {}
+func HttpGetRespCallback(resp *http.Response) {}
+func HttpRespCallback(resp *http.Response) ([]byte, error) {
+	return nil, nil
+}
 
 func Get(client HttpClient, url string, setReq func(req *Request), getResp func(resp *http.Response)) ([]byte, error) {
 	// GET data
@@ -21,7 +24,7 @@ func Get(client HttpClient, url string, setReq func(req *Request), getResp func(
 		return nil, err
 	}
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +32,7 @@ func Get(client HttpClient, url string, setReq func(req *Request), getResp func(
 	return body, nil
 }
 
-func Post(client HttpClient, url string, data []byte, setReq func(req *Request), getResp func(resp *http.Response)) ([]byte, error) {
+func Post(client HttpClient, url string, data []byte, setReq func(req *Request), getResp func(resp *http.Response) ([]byte, error)) ([]byte, error) {
 	req, err := NewRequest("POST", url, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -40,10 +43,15 @@ func Post(client HttpClient, url string, data []byte, setReq func(req *Request),
 		return nil, err
 	}
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := getResp(res)
 	if err != nil {
 		return nil, err
 	}
-	getResp(res)
+	if body == nil {
+		body, err = io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return body, nil
 }

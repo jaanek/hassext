@@ -60,7 +60,7 @@ func (p *HttpClientParams) SetCookies(req *httpclient.Request) {
 
 func FrontendLogin(lo logf.Logger, params *HttpClientParams) (*HttpLoginResponse, error) {
 	params.Cookies = make(map[string]string)
-	client := httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay)
+	client := httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay, false)
 
 	// get emodule start cookies by visiting front page
 	body, err := httpclient.Get(client, params.FrontendUrl+"/login", httpclient.HttpReqCallback, func(resp *http.Response) {
@@ -80,8 +80,9 @@ func FrontendLogin(lo logf.Logger, params *HttpClientParams) (*HttpLoginResponse
 	}
 	body, err = httpclient.Post(client, params.FrontendUrl+"/frontend/login", data, func(req *httpclient.Request) {
 		params.SetCookies(req)
-	}, func(resp *http.Response) {
+	}, func(resp *http.Response) ([]byte, error) {
 		params.SaveCookies(resp)
+		return nil, nil
 	})
 	if err != nil {
 		return nil, err

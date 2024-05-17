@@ -6,6 +6,7 @@ import (
 
 	"github.com/jaanek/hassext/chromecast"
 	"github.com/jaanek/hassext/hub"
+	"github.com/jaanek/hassext/jblbar"
 	"github.com/jaanek/hassext/snapcast"
 	"github.com/zerodha/logf"
 )
@@ -68,7 +69,37 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				// set starting volume
 				var cc = s.chromecasts.ChromecastByDeviceName(chromecast.LIVING_ROOM_JBL)
 				if cc != nil {
-					var err = cc.SetVolume(chromecastVolumeStart)
+					// power on first if it's off/stand-by
+					var streamingResult = jblbar.GetStreamingStatusResult{}
+					var err = cc.CallCommand(jblbar.CommandGetStreamingStatus, nil, &streamingResult)
+					if err != nil {
+						s.lo.Error(s.prefix+"jbl-bar streaming status failed", "error", err)
+					} else if streamingResult.Status.Source == jblbar.StreamingSourceIdle {
+						// power it on
+						var cmdResult = jblbar.CommandResultError{}
+						var powerOn = jblbar.KeyPressedPower
+						err = cc.CallCommand(jblbar.CommandSendAppController, &powerOn, &cmdResult)
+						if err != nil {
+							s.lo.Error(s.prefix+"jbl-bar power on failed", "error", err)
+						}
+						// set to TV
+						var setTv = jblbar.KeyPressedSourceTV
+						err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
+						if err != nil {
+							s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
+						}
+					} else if streamingResult.Status.Source != jblbar.StreamingSourceTV {
+						// set to TV
+						var cmdResult = jblbar.CommandResultError{}
+						var setTv = jblbar.KeyPressedSourceTV
+						err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
+						if err != nil {
+							s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
+						}
+					}
+
+					// set default volume for sound
+					err = cc.SetVolume(chromecastVolumeStart)
 					if err != nil {
 						s.lo.Error(s.prefix+"Setting start volume failed", "error", err)
 					}
