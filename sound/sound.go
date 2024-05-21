@@ -58,6 +58,80 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	const chromecastVolumeStep = 0.03999999910593033 // got from: "stepInterval\":0.03999999910593033
 	const chromecastVolumeStart = 0.31
 
+	var ensureOnline = func() {
+		if s.snapcastClientId == ClientIdElutubaTv {
+			var cc = s.chromecasts.ChromecastByDeviceName(chromecast.LIVING_ROOM_JBL)
+			if cc == nil {
+				s.lo.Warn(s.prefix+"Living room chromecast not found", "chromecast name", chromecast.LIVING_ROOM_JBL)
+				return
+			}
+			// power on first if it's off/stand-by
+			var streamingResult = jblbar.GetStreamingStatusResult{}
+			var err = cc.CallCommand(jblbar.CommandGetStreamingStatus, nil, &streamingResult)
+			if err != nil {
+				s.lo.Error(s.prefix+"jbl-bar streaming status failed", "error", err)
+				return
+			}
+			if streamingResult.Status.Source == jblbar.StreamingSourceIdle {
+				// power it on
+				var cmdResult = jblbar.CommandResultError{}
+				var powerOn = jblbar.KeyPressedPower
+				err = cc.CallCommand(jblbar.CommandSendAppController, &powerOn, &cmdResult)
+				if err != nil {
+					s.lo.Error(s.prefix+"jbl-bar power on failed", "error", err)
+				}
+				// set to TV
+				var setTv = jblbar.KeyPressedSourceTV
+				err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
+				if err != nil {
+					s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
+				}
+			} else if streamingResult.Status.Source != jblbar.StreamingSourceTV {
+				// set to TV
+				var cmdResult = jblbar.CommandResultError{}
+				var setTv = jblbar.KeyPressedSourceTV
+				err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
+				if err != nil {
+					s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
+				}
+			} else if streamingResult.Status.IsStreaming == "false" {
+				// at some point it's TV but not streaming
+				// {"error_code":"0","status":{"source":"TV","is_streaming":"false","is_atmos":"false"}}
+				// set to HDMI
+				var cmdResult = jblbar.CommandResultError{}
+				var setHdmi = jblbar.KeyPressedSourceHDMI
+				err = cc.CallCommand(jblbar.CommandSendAppController, &setHdmi, &cmdResult)
+				if err != nil {
+					s.lo.Error(s.prefix+"jbl-bar set source to HDMI failed", "error", err)
+				}
+				// switch back to TV
+				var setTv = jblbar.KeyPressedSourceTV
+				err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
+				if err != nil {
+					s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
+				}
+			}
+
+			// set default volume for sound
+			err = cc.SetVolume(chromecastVolumeStart)
+			if err != nil {
+				s.lo.Error(s.prefix+"Setting start volume failed", "error", err)
+			}
+
+			// if morning (6am-9am) then set skyplus
+			now := time.Now()
+			morningStart := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
+			morningEnd := time.Date(now.Year(), now.Month(), now.Day(), 9, 30, 0, 0, now.Location())
+			if now.After(morningStart) && now.Before(morningEnd) {
+				var streamId = "SkyPlus"
+				s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
+					ClientId: s.snapcastClientId,
+					StreamId: streamId,
+				})
+			}
+		}
+	}
+
 	// first check if client is muted, if so then first action behaves as unmute
 	var unmuteIfMuted = func() (*snapcast.Client, bool, error) {
 		client, err := s.snapcast.ClientGetStatus(s.snapcastClientId)
@@ -65,59 +139,6 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			return client, false, err
 		}
 		if client.Muted {
-			if s.snapcastClientId == ClientIdElutubaTv {
-				// set starting volume
-				var cc = s.chromecasts.ChromecastByDeviceName(chromecast.LIVING_ROOM_JBL)
-				if cc != nil {
-					// power on first if it's off/stand-by
-					var streamingResult = jblbar.GetStreamingStatusResult{}
-					var err = cc.CallCommand(jblbar.CommandGetStreamingStatus, nil, &streamingResult)
-					if err != nil {
-						s.lo.Error(s.prefix+"jbl-bar streaming status failed", "error", err)
-					} else if streamingResult.Status.Source == jblbar.StreamingSourceIdle {
-						// power it on
-						var cmdResult = jblbar.CommandResultError{}
-						var powerOn = jblbar.KeyPressedPower
-						err = cc.CallCommand(jblbar.CommandSendAppController, &powerOn, &cmdResult)
-						if err != nil {
-							s.lo.Error(s.prefix+"jbl-bar power on failed", "error", err)
-						}
-						// set to TV
-						var setTv = jblbar.KeyPressedSourceTV
-						err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
-						if err != nil {
-							s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
-						}
-					} else if streamingResult.Status.Source != jblbar.StreamingSourceTV {
-						// set to TV
-						var cmdResult = jblbar.CommandResultError{}
-						var setTv = jblbar.KeyPressedSourceTV
-						err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
-						if err != nil {
-							s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
-						}
-					}
-
-					// set default volume for sound
-					err = cc.SetVolume(chromecastVolumeStart)
-					if err != nil {
-						s.lo.Error(s.prefix+"Setting start volume failed", "error", err)
-					}
-				} else {
-					s.lo.Warn(s.prefix+"Living room chromecast not found", "chromecast name", chromecast.LIVING_ROOM_JBL)
-				}
-				// if morning (6am-9am) then set skyplus
-				now := time.Now()
-				morningStart := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, now.Location())
-				morningEnd := time.Date(now.Year(), now.Month(), now.Day(), 9, 30, 0, 0, now.Location())
-				if now.After(morningStart) && now.Before(morningEnd) {
-					var streamId = "SkyPlus"
-					s.snapcast.SendRequest(snapcast.SetDefaultChannelReq{
-						ClientId: s.snapcastClientId,
-						StreamId: streamId,
-					})
-				}
-			}
 			return client, true, s.snapcast.ClientMute(client, false)
 		}
 		return client, false, nil
@@ -131,6 +152,9 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	case "play_pause":
 		var client, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
+			if wasMuted {
+				ensureOnline()
+			}
 			return err
 		}
 		return s.snapcast.ClientMute(client, true)
