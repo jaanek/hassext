@@ -80,7 +80,13 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				if err != nil {
 					s.lo.Error(s.prefix+"jbl-bar power on failed", "error", err)
 				}
-				// set to TV
+				// set to HDMI - this is just in case tv needs time when waking up ???
+				var setHdmi = jblbar.KeyPressedSourceHDMI
+				err = cc.CallCommand(jblbar.CommandSendAppController, &setHdmi, &cmdResult)
+				if err != nil {
+					s.lo.Error(s.prefix+"jbl-bar set source to HDMI failed", "error", err)
+				}
+				// switch to TV
 				var setTv = jblbar.KeyPressedSourceTV
 				err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
 				if err != nil {
