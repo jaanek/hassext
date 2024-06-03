@@ -92,6 +92,32 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				if err != nil {
 					s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
 				}
+
+				// wait 1sec in a thread & check if is_streaming is true if not then  HDMI -> TV once again
+				// {"error_code":"0","status":{"source":"TV","is_streaming":"false","is_atmos":"false"}}
+				go func() {
+					time.Sleep(1 * time.Second)
+					var streamingResult = jblbar.GetStreamingStatusResult{}
+					var err = cc.CallCommand(jblbar.CommandGetStreamingStatus, nil, &streamingResult)
+					if err != nil {
+						s.lo.Error(s.prefix+"jbl-bar streaming status failed", "error", err)
+						return
+					}
+					if streamingResult.Status.IsStreaming == "false" {
+						// set to HDMI - this is just in case tv needs time when waking up ???
+						var setHdmi = jblbar.KeyPressedSourceHDMI
+						err = cc.CallCommand(jblbar.CommandSendAppController, &setHdmi, &cmdResult)
+						if err != nil {
+							s.lo.Error(s.prefix+"jbl-bar set source to HDMI failed", "error", err)
+						}
+						// switch to TV
+						var setTv = jblbar.KeyPressedSourceTV
+						err = cc.CallCommand(jblbar.CommandSendAppController, &setTv, &cmdResult)
+						if err != nil {
+							s.lo.Error(s.prefix+"jbl-bar set source to TV failed", "error", err)
+						}
+					}
+				}()
 			} else if streamingResult.Status.Source != jblbar.StreamingSourceTV {
 				// set to TV
 				var cmdResult = jblbar.CommandResultError{}
