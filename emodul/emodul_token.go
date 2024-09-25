@@ -94,7 +94,7 @@ func NewApiToken(lo logf.Logger, params *HttpClientParams) (string, uint64, erro
 	if err != nil {
 		return "", 0, err
 	}
-	client := httpclient.New(httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay, false)
+	client := httpclient.New(nil, httpclient.DefaultRetryCheckPolicy(), httpclient.DefaultRetryWaitDelay, false)
 	req, err := httpclient.NewRequest("POST", params.ApiUrl+"/authentication", bytes.NewReader(payload))
 	if err != nil {
 		return "", 0, err

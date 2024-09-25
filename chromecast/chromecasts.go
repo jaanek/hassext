@@ -2,6 +2,7 @@ package chromecast
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -25,15 +26,17 @@ type ccs struct {
 	ifaceName   string
 	deviceNames []string
 	devices     []Chromecast
+	cert        *tls.Certificate
 }
 
-func NewDevices(log logf.Logger, ifaceName string, deviceNames []string) Chromecasts {
+func NewDevices(log logf.Logger, ifaceName string, deviceNames []string, cert *tls.Certificate) Chromecasts {
 	return &ccs{
 		prefix:      "[chromecasts] ",
 		log:         log,
 		done:        make(chan struct{}),
 		ifaceName:   ifaceName,
 		deviceNames: deviceNames,
+		cert:        cert,
 	}
 }
 
@@ -185,7 +188,7 @@ func (c *ccs) connectDevices(iface *net.Interface) error {
 			}
 			c.log.Info(c.prefix+"Successfully re-connected to chromecast!", "name", entry.GetName(), "host", entry.GetAddr(), "port", entry.GetPort())
 		} else {
-			var d = New(c.log, entry)
+			var d = New(c.log, entry, c.cert)
 			// connect new device
 			ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
 			defer cancel()

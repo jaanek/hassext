@@ -2,6 +2,7 @@ package jblbar
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,12 +26,19 @@ type jb struct {
 	apiUrl string
 }
 
-func New(log logf.Logger, apiUrl string) JblBar {
+func New(log logf.Logger, apiUrl string, cert *tls.Certificate) JblBar {
+	// TLS configuration with no server verification
+	var tlsConfig = &tls.Config{
+		InsecureSkipVerify: true, // This skips server certificate verification
+	}
+	if cert != nil {
+		tlsConfig.Certificates = []tls.Certificate{*cert}
+	}
 	return &jb{
 		prefix: "[jbl-bar] ",
 		log:    log,
-		http:   httpclient.New(getApiDefaultRetryCheckPolicy(log), defaultRetryWaitDelay, true),
-		apiUrl: apiUrl, // "http://" + entry.GetAddr()
+		http:   httpclient.New(tlsConfig, getApiDefaultRetryCheckPolicy(log), defaultRetryWaitDelay, true),
+		apiUrl: apiUrl, // "https://" + entry.GetAddr()
 	}
 }
 
@@ -101,6 +109,7 @@ func (m *jb) CallCommand(command Command, value *CommandPayload, result any) err
 	body, err := m.Post(m.apiUrl+"/httpapi.asp", data, func(req *httpclient.Request) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(data)))
+		req.Header.Set("User-Agent", "okhttp/4.9.1")
 		req.ContentLength = int64(len(data))
 		fmt.Println("[REQUEST] callCommand", string(data))
 	}, func(resp *http.Response) ([]byte, error) {

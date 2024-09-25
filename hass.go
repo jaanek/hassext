@@ -2,6 +2,7 @@ package hass
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -59,7 +60,11 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		ApiUrl: ko.String("snapcast.apiUrl"),
 	})
 	r := rest.NewRest(lo, em, sc, ko.String("rest.host"), ko.Int("rest.port"), ko.String("rest.jwtSecret"))
-	chromecasts := chromecast.NewDevices(lo, "", ko.Strings("chromecast.devices"))
+	cert, err := loadCert()
+	if err != nil {
+		return nil, fmt.Errorf("Error loading client certs: %w", err)
+	}
+	chromecasts := chromecast.NewDevices(lo, "", ko.Strings("chromecast.devices"), &cert)
 	sound := sound.New(lo, hub, sc, chromecasts)
 	ha := homeassistant.NewHomeAssistantClient(lo, &homeassistant.HttpClientParams{
 		ApiUrl: ko.String("homeassistant.apiUrl"),

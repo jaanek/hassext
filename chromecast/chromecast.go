@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	LIVING_ROOM_JBL = "jbl bar"
+	LIVING_ROOM_JBL = "JBL BAR 500"
 )
 
 var (
@@ -71,14 +71,14 @@ type cc struct {
 	jblBar            jblbar.JblBar
 }
 
-func New(log logf.Logger, entry CastDNSEntry) Chromecast {
+func New(log logf.Logger, entry CastDNSEntry, cert *tls.Certificate) Chromecast {
 	return &cc{
 		prefix:        "[chromecast] ",
 		log:           log,
 		entry:         entry,
 		recvMsgChan:   make(chan *pb.CastMessage, 5),
 		resultChanMap: make(map[uint64]chan *pb.CastMessage),
-		jblBar:        jblbar.New(log, "http://"+entry.GetAddr()),
+		jblBar:        jblbar.New(log, "https://"+entry.GetAddr(), cert),
 	}
 }
 

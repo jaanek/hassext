@@ -69,7 +69,7 @@ type HttpClientParams struct {
 func New(lo logf.Logger, params *HttpClientParams) Snapcast {
 	return &snapcast{
 		lo:       lo,
-		http:     httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay, false),
+		http:     httpclient.New(nil, getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay, false),
 		params:   params,
 		errors:   make(chan error, 10),
 		requests: make(chan Request, 10),

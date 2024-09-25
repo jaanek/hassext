@@ -41,7 +41,7 @@ type HttpClientParams struct {
 func NewHomeAssistantClient(lo logf.Logger, params *HttpClientParams) HomeAssistant {
 	return &homeassistant{
 		lo:     lo,
-		http:   httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay, false),
+		http:   httpclient.New(nil, getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay, false),
 		params: params,
 	}
 }

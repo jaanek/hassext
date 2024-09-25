@@ -95,7 +95,7 @@ func NewEmodulClient(lo logf.Logger, mq mq.MqttClient, params *HttpClientParams)
 	return &emodul{
 		lo:               lo,
 		mq:               mq,
-		http:             httpclient.New(getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay, false),
+		http:             httpclient.New(nil, getApiDefaultRetryCheckPolicy(lo, params), emodulDefaultRetryWaitDelay, false),
 		params:           params,
 		errors:           make(chan error, 10),
 		dataUpdate:       make(chan struct{}, 1),

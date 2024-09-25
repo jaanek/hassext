@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
@@ -9,10 +10,13 @@ import (
 	"time"
 )
 
-func New(retry RetryCheck, waitDelay RetryWaitDelay, debugWire bool) HttpClient {
+func New(tlsConfig *tls.Config, retry RetryCheck, waitDelay RetryWaitDelay, debugWire bool) HttpClient {
 	var hc = &httpClient{
 		client: http.Client{
 			Timeout: time.Second * 5 * 60,
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
 		},
 		RetryMax:       3,
 		RetryCheck:     retry,
@@ -20,7 +24,7 @@ func New(retry RetryCheck, waitDelay RetryWaitDelay, debugWire bool) HttpClient 
 	}
 	if debugWire {
 		hc.client.Transport = &loggingTransport{
-			Transport: http.DefaultTransport,
+			Transport: hc.client.Transport, // http.DefaultTransport,
 		}
 	}
 	return hc
