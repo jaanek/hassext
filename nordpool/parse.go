@@ -6,15 +6,19 @@ import (
 	"github.com/jaanek/hassext/data"
 )
 
+const (
+	SensorId = "sensor.nordpool_mwh_ee_eur_2_10_022"
+)
+
 func ParseNordpoolPrices(state data.DataValue) (*NordpoolPrices, error) {
-	entityId := "sensor.nordpool_mwh_ee_eur_3_10_02"
+	entityId := SensorId
 	var prices NordpoolPrices = NordpoolPrices{
 		Id: entityId,
 	}
 	var errors data.Errors
 
 	// get prices
-	entityPath := fmt.Sprintf("$[?(@.entity_id == \"%v\")]", "sensor.nordpool_mwh_ee_eur_3_10_02")
+	entityPath := fmt.Sprintf("$[?(@.entity_id == \"%v\")]", entityId)
 	parent := state.GetObject(entityPath)
 	if parent == nil {
 		return nil, fmt.Errorf("Nordpool Entity state not found! entity_id: %v", entityId)
