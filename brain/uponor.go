@@ -47,10 +47,10 @@ func (b *brain) Uponor(state data.DataValue) {
 		return
 	}
 	for _, v := range uponorData.Output.Vars {
-		parseTemperatures(b.lo, ESIK, v, &b.uponorEsik)
-		parseTemperatures(b.lo, ELUTUBA, v, &b.uponorElutuba)
-		parseTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum)
-		parseTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum)
+		parseSaveTemperatures(b.lo, ESIK, v, &b.uponorEsik)
+		parseSaveTemperatures(b.lo, ELUTUBA, v, &b.uponorElutuba)
+		parseSaveTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum)
+		parseSaveTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum)
 	}
 	// publish temperatures
 	publishTemperature(b.lo, &b.uponorEsik, tempEsik)
@@ -122,7 +122,7 @@ func publishTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Senso
 	return nil
 }
 
-func parseTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState) {
+func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState) {
 	if v.VarName == room+"_room_temperature" {
 		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
 		if err != nil {
