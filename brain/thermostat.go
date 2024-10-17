@@ -30,7 +30,16 @@ func ParseThermostatState(entityId string, state data.DataValue) (*ThermostatSta
 	entity.CurrentTemperature = entityData.GetFloat64("$.attributes.current_temperature", &errors)
 	entity.SetTemperature = entityData.GetFloat64("$.attributes.temperature", &errors)
 	if errors.HasAny() {
-		return nil, errors.FirstError()
+		return nil, fmt.Errorf("%s parsing error: %w", entityId, errors.FirstError())
 	}
 	return &entity, nil
+}
+
+func NewThermostat(entityId string, currentTemp float64, setTemp float64) ThermostatState {
+	var entity = ThermostatState{
+		Id: entityId,
+	}
+	entity.CurrentTemperature = currentTemp
+	entity.SetTemperature = setTemp
+	return entity
 }

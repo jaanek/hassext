@@ -5,7 +5,7 @@ import "github.com/jaanek/hassext/homeassistant"
 type EntityState string
 
 const (
-	ENTITY_HEATING      EntityState = "climate.altherma"
+	ENTITY_HEATING      EntityState = "climate.altherma_leaving_water_offset" // "climate.altherma"
 	ENTITY_WATER_HEATER EntityState = "water_heater.altherma"
 )
 
@@ -33,20 +33,16 @@ const (
 	ENTITY_AUTOMATION_WATER_HEATER_STOP                   = "automation.seiska_soojuspump_vesi"
 )
 
-const WaterHeaterEntity = "water_heater.altherma"
-
 func SetWaterHeaterMode(ha homeassistant.WaterHeater, mode homeassistant.WaterHeaterOperationMode) error {
-	return ha.WaterHeaterSetOperationMode(WaterHeaterEntity, mode)
+	return ha.WaterHeaterSetOperationMode(string(ENTITY_WATER_HEATER), mode)
 }
 
-const HeatingEntity = "climate.altherma"
-
 func SetHeating(ha homeassistant.Climate, mode homeassistant.ClimateHvacMode) error {
-	return ha.ClimateSetHvacMode(HeatingEntity, mode)
+	return ha.ClimateSetHvacMode(string(ENTITY_HEATING), mode)
 }
 
 func SetHeatingTemperature(ha homeassistant.Climate, temp float32, mode *homeassistant.ClimateHvacMode) error {
-	return ha.ClimateSetTemperature(HeatingEntity, temp, mode)
+	return ha.ClimateSetTemperature(string(ENTITY_HEATING), temp, mode)
 }
 
 // example: Automation(ha, ENTITY_WATER_TANK_START, AUTOMATION_TURN_ON)

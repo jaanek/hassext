@@ -16,6 +16,7 @@ import (
 	"github.com/jaanek/hassext/rest"
 	"github.com/jaanek/hassext/snapcast"
 	"github.com/jaanek/hassext/sound"
+	"github.com/jaanek/hassext/uponor"
 	"github.com/knadh/koanf"
 	"github.com/zerodha/logf"
 )
@@ -70,7 +71,10 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		ApiUrl: ko.String("homeassistant.apiUrl"),
 		Token:  ko.String("homeassistant.token"),
 	})
-	brain := brain.NewBrain(lo, ha)
+	uponorClient := uponor.NewUponorClient(lo, &uponor.HttpClientParams{
+		Host: ko.String("uponor.host"),
+	})
+	brain := brain.NewBrain(lo, ha, mq, uponorClient)
 
 	return &HassExt{
 		opts:        opts,

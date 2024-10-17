@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 )
@@ -52,6 +53,26 @@ func Post(client HttpClient, url string, data []byte, setReq func(req *Request),
 		if err != nil {
 			return nil, err
 		}
+	}
+	return body, nil
+}
+
+func ReadJsonResult(resp *http.Response, value any) ([]byte, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return body, err
+	}
+	var e = json.NewDecoder(bytes.NewReader(body)).Decode(value)
+	if e != nil {
+		return body, e
+	}
+	return body, nil
+}
+
+func ReadResult(resp *http.Response) ([]byte, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return body, err
 	}
 	return body, nil
 }

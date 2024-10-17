@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/jaanek/hassext/homeassistant"
+	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/nordpool"
+	"github.com/jaanek/hassext/uponor"
 	"github.com/zerodha/logf"
 )
 
@@ -17,6 +19,8 @@ type Brain interface {
 type brain struct {
 	lo                                   logf.Logger
 	ha                                   homeassistant.HomeAssistant
+	mq                                   mq.MqttClient
+	uponorClient                         uponor.Uponor
 	errors                               chan error
 	nordpoolPrices                       nordpool.NordpoolPrices
 	dishwasherStart                      time.Time
@@ -39,14 +43,19 @@ type brain struct {
 	emodulOperationMode                  EntityState
 	emodulOutsideTemp                    float64
 	emodulBoilerTemp                     float64
-	uponorElutuba                        ThermostatState // example: "off" / "heat"
+	uponorElutuba                        ThermostatState
+	uponorEsik                           ThermostatState
+	uponorDussiruum                      ThermostatState
+	uponorSaunaEesruum                   ThermostatState
 }
 
-func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant) Brain {
+func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.Uponor) Brain {
 	return &brain{
-		lo:     lo,
-		ha:     ha,
-		errors: make(chan error, 10),
+		lo:           lo,
+		ha:           ha,
+		mq:           mq,
+		uponorClient: uponorClient,
+		errors:       make(chan error, 10),
 	}
 }
 
@@ -67,7 +76,7 @@ func (b *brain) Run(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	for {
 		// fetch data
-		err := b.ha.FetchData()
+		var err = b.fetchData()
 		if err != nil {
 			werr := fmt.Errorf("fetch error %w", err)
 			b.errors <- werr
@@ -83,6 +92,18 @@ func (b *brain) Run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (b *brain) fetchData() error {
+	err := b.ha.FetchData()
+	if err != nil {
+		return err
+	}
+	errU := b.uponorClient.FetchData()
+	if errU != nil {
+		b.lo.Error("Error while fetching data from uponor controller!", "error", errU)
+	}
+	return err
 }
 
 func (b *brain) onDataUpdate() {
