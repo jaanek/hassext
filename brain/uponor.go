@@ -20,10 +20,10 @@ const (
 
 func (b *brain) Uponor(state data.DataValue) {
 	// init sensors
-	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceFloorWallTempSensorElutuba, string(uponor.THERMOSTAT_ELUTUBA), "Uponor wall thermostat elutuba temperature", "hassext/"+string(uponor.THERMOSTAT_ELUTUBA)+"_temp")
-	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceFloorWallTempSensorEsik, string(uponor.THERMOSTAT_ESIK), "Uponor wall thermostat esik temperature", "hassext/"+string(uponor.THERMOSTAT_ESIK)+"_temp")
-	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceFloorWallTempSensorDussiruum, string(uponor.THERMOSTAT_DUSSIRUUM), "Uponor wall thermostat dussiruum temperature", "hassext/"+string(uponor.THERMOSTAT_DUSSIRUUM)+"_temp")
-	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceFloorWallTempSensorSaunaEesruum, string(uponor.THERMOSTAT_SAUNA_EESRUUM), "Uponor wall thermostat sauna eesruum temperature", "hassext/"+string(uponor.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
+	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ELUTUBA), string(uponor.THERMOSTAT_ELUTUBA), "hassext/"+string(uponor.THERMOSTAT_ELUTUBA)+"_temp")
+	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ESIK), string(uponor.THERMOSTAT_ESIK), "hassext/"+string(uponor.THERMOSTAT_ESIK)+"_temp")
+	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_DUSSIRUUM), string(uponor.THERMOSTAT_DUSSIRUUM), "hassext/"+string(uponor.THERMOSTAT_DUSSIRUUM)+"_temp")
+	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_SAUNA_EESRUUM), string(uponor.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(uponor.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
 	sensors := make([]emodul.Sensor, 0)
 	sensors = append(
 		sensors,

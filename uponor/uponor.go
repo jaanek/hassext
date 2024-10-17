@@ -13,10 +13,10 @@ type ThermostatName string
 type EntityState string
 
 const (
-	THERMOSTAT_ELUTUBA              ThermostatName = "floor1_uponor_elutuba"
-	THERMOSTAT_ESIK                 ThermostatName = "floor1_uponor_kook_esik"
-	THERMOSTAT_DUSSIRUUM            ThermostatName = "floor1_uponor_dussiruum"
-	THERMOSTAT_SAUNA_EESRUUM        ThermostatName = "floor1_uponor_sauna_eesruum"
+	THERMOSTAT_ELUTUBA              ThermostatName = "floor1_elutuba"
+	THERMOSTAT_ESIK                 ThermostatName = "floor1_esik"
+	THERMOSTAT_DUSSIRUUM            ThermostatName = "floor1_dussiruum"
+	THERMOSTAT_SAUNA_EESRUUM        ThermostatName = "floor1_sauna_eesruum"
 	ENTITY_THERMOSTAT_ELUTUBA       EntityState    = "climate.elutuba"
 	ENTITY_THERMOSTAT_ESIK          EntityState    = "climate.kook_esik"
 	ENTITY_THERMOSTAT_DUSSIRUUM     EntityState    = "climate.dussiruum"
@@ -24,30 +24,30 @@ const (
 )
 
 var (
-	DeviceFloorWallTempSensorElutuba = emodul.SensorMqttConfigDevice{
-		Identifiers:  []string{"hassext_" + string(THERMOSTAT_ELUTUBA)},
+	DeviceUponorWallThermostat = emodul.SensorMqttConfigDevice{
+		Identifiers:  []string{"hassext_uponor_wall_thermostat"},
 		Manufacturer: "UponorC",
 		Model:        "Temperature sensor",
-		Name:         "Floor1 wall temperature sensor elutuba",
+		Name:         "Uponor wall thermostat",
 	}
-	DeviceFloorWallTempSensorEsik = emodul.SensorMqttConfigDevice{
-		Identifiers:  []string{"hassext_" + string(THERMOSTAT_ESIK)},
-		Manufacturer: "UponorC",
-		Model:        "Temperature sensor",
-		Name:         "Floor1 wall temperature sensor esik",
-	}
-	DeviceFloorWallTempSensorDussiruum = emodul.SensorMqttConfigDevice{
-		Identifiers:  []string{"hassext_" + string(THERMOSTAT_DUSSIRUUM)},
-		Manufacturer: "UponorC",
-		Model:        "Temperature sensor",
-		Name:         "Floor1 wall temperature sensor dussiruum",
-	}
-	DeviceFloorWallTempSensorSaunaEesruum = emodul.SensorMqttConfigDevice{
-		Identifiers:  []string{"hassext_" + string(THERMOSTAT_SAUNA_EESRUUM)},
-		Manufacturer: "UponorC",
-		Model:        "Temperature sensor",
-		Name:         "Floor1 wall temperature sensor sauna eesruum",
-	}
+	// DeviceFloorWallTempSensorEsik = emodul.SensorMqttConfigDevice{
+	// 	Identifiers:  []string{"hassext_" + string(THERMOSTAT_ESIK)},
+	// 	Manufacturer: "UponorC",
+	// 	Model:        "Temperature sensor",
+	// 	Name:         "Floor1 wall temperature sensor esik",
+	// }
+	// DeviceFloorWallTempSensorDussiruum = emodul.SensorMqttConfigDevice{
+	// 	Identifiers:  []string{"hassext_" + string(THERMOSTAT_DUSSIRUUM)},
+	// 	Manufacturer: "UponorC",
+	// 	Model:        "Temperature sensor",
+	// 	Name:         "Floor1 wall temperature sensor dussiruum",
+	// }
+	// DeviceFloorWallTempSensorSaunaEesruum = emodul.SensorMqttConfigDevice{
+	// 	Identifiers:  []string{"hassext_" + string(THERMOSTAT_SAUNA_EESRUUM)},
+	// 	Manufacturer: "UponorC",
+	// 	Model:        "Temperature sensor",
+	// 	Name:         "Floor1 wall temperature sensor sauna eesruum",
+	// }
 )
 
 type Uponor interface {
