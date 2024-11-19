@@ -17,8 +17,16 @@ func (b *brain) EmodulIsDamped() bool {
 }
 
 func (b *brain) Emodule(state data.DataValue) {
+	// check if heating is in winter mode
+	entity, err := ParseEntityState(string(emodul.ENTITY_BOOL_HEATING_ALLOWED), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.heapPumpHeatingAllowedWinterMode = *entity
+		b.lo.Info("HeatPump", "heating heatpump allowed / winter mode", *entity)
+	}
 	// emodul controller state
-	entity, err := ParseEntityState(string(emodul.ENTITY_CONTROLLER_STATE), state)
+	entity, err = ParseEntityState(string(emodul.ENTITY_CONTROLLER_STATE), state)
 	if err != nil {
 		b.errors <- err
 	} else {

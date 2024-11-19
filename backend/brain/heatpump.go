@@ -387,9 +387,24 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 
 	// if katel is running and it is in winter mode then switch the heatpump off
 	var katelRunning = !b.EmodulIsDamped()
-	var katelInWinterMode = false
-	if katelRunning && katelInWinterMode && b.heatPumpHeating.State != "off" {
+	var katelInWinterMode = b.heapPumpHeatingAllowedWinterMode.State == "on"
+	if katelRunning && katelInWinterMode { // && b.heatPumpHeating.State != "off"
 		// TODO: switch the heatpump off
+		var newTemp = -10
+		if uint64(b.heatPumpHeating.SetTemperature) != uint64(newTemp) {
+			b.lo.Info("HeatPump set temperature to minimum because katel is running & in winter mode", "newTemp", newTemp)
+			err := b.ha.SetInputNumberValue(string(heatpump.ENTITY_NUMBER_TRIGGER_HEATER_SET_TEMP), int64(newTemp))
+			if err != nil {
+				return err
+			}
+			var tempShift = 0
+			b.lo.Info("Reset the heatpump temp shift because katel is running & in winter mode", "newTemp", tempShift)
+			err = b.ha.SetInputNumberValue(string(heatpump.ENTITY_NUMBER_HEATER_TEMP_SHIFT), int64(tempShift))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	// remove the last 3 maximum hours per day and max price from there
@@ -447,6 +462,14 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 	currentPrice := todayPrices[nowHour]
 	var newTemp float32 = 0
 	outsideTemp := b.emodulOutsideTemp
+
+	// if katel is running and it is in winter mode then no heatpump things
+	var katelRunning = !b.EmodulIsDamped()
+	var katelInWinterMode = b.heapPumpHeatingAllowedWinterMode.State == "on"
+	if katelRunning && katelInWinterMode {
+		b.lo.Info("HeatPump temps off because katel is running & in winter mode")
+		return nil
+	}
 
 	// check outside temperature
 	// if outsideTemp < -15 {
