@@ -1,0 +1,3 @@
+
+// set intensive: curl -X POST http://192.168.1.90/ajax.xml --data '3=3'
+// set normal: curl -X POST http://192.168.1.90/ajax.xml --data '3=2'
