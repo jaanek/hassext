@@ -19,11 +19,16 @@ const (
 )
 
 func (b *brain) Uponor(state data.DataValue) {
-	// init sensors
+	// current temperatures reading
 	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ELUTUBA), string(uponor.THERMOSTAT_ELUTUBA), "hassext/"+string(uponor.THERMOSTAT_ELUTUBA)+"_temp")
 	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ESIK), string(uponor.THERMOSTAT_ESIK), "hassext/"+string(uponor.THERMOSTAT_ESIK)+"_temp")
 	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_DUSSIRUUM), string(uponor.THERMOSTAT_DUSSIRUUM), "hassext/"+string(uponor.THERMOSTAT_DUSSIRUUM)+"_temp")
 	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_SAUNA_EESRUUM), string(uponor.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(uponor.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
+	// target temperatures set
+	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ELUTUBA_TARGET), string(uponor.THERMOSTAT_ELUTUBA_TARGET), "hassext/"+string(uponor.THERMOSTAT_ELUTUBA_TARGET)+"_temp")
+	tempTargetEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ESIK_TARGET), string(uponor.THERMOSTAT_ESIK_TARGET), "hassext/"+string(uponor.THERMOSTAT_ESIK_TARGET)+"_temp")
+	tempTargetDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_DUSSIRUUM_TARGET), string(uponor.THERMOSTAT_DUSSIRUUM_TARGET), "hassext/"+string(uponor.THERMOSTAT_DUSSIRUUM_TARGET)+"_temp")
+	tempTargetSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_SAUNA_EESRUUM_TARGET), string(uponor.THERMOSTAT_SAUNA_EESRUUM_TARGET), "hassext/"+string(uponor.THERMOSTAT_SAUNA_EESRUUM_TARGET)+"_temp")
 	sensors := make([]emodul.Sensor, 0)
 	sensors = append(
 		sensors,
@@ -31,6 +36,10 @@ func (b *brain) Uponor(state data.DataValue) {
 		tempEsik,
 		tempDussiruum,
 		tempSaunaEesruum,
+		tempTargetElutuba,
+		tempTargetEsik,
+		tempTargetDussiruum,
+		tempTargetSaunaEesruum,
 	)
 	// send configs
 	for _, sensor := range sensors {
@@ -52,11 +61,16 @@ func (b *brain) Uponor(state data.DataValue) {
 		parseSaveTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum)
 		parseSaveTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum)
 	}
-	// publish temperatures
+	// publish current temperatures
 	publishTemperature(b.lo, &b.uponorEsik, tempEsik)
 	publishTemperature(b.lo, &b.uponorElutuba, tempElutuba)
 	publishTemperature(b.lo, &b.uponorSaunaEesruum, tempSaunaEesruum)
 	publishTemperature(b.lo, &b.uponorDussiruum, tempDussiruum)
+	// publish target temperatures
+	publishTargetTemperature(b.lo, &b.uponorEsik, tempTargetEsik)
+	publishTargetTemperature(b.lo, &b.uponorElutuba, tempTargetElutuba)
+	publishTargetTemperature(b.lo, &b.uponorSaunaEesruum, tempTargetSaunaEesruum)
+	publishTargetTemperature(b.lo, &b.uponorDussiruum, tempTargetDussiruum)
 
 	// // elutuba
 	// thermostat, err := ParseThermostatState(string(uponor.ENTITY_THERMOSTAT_ELUTUBA), state)
@@ -117,6 +131,16 @@ func publishTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Senso
 	var err = sensor.PublishData(context.Background(), float32(ts.CurrentTemperature))
 	if err != nil {
 		lo.Error("Error while publishing uponor temperature to mq!", "thermostat", ts, "value", ts.CurrentTemperature)
+		return err
+	}
+	return nil
+}
+
+func publishTargetTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Sensor) error {
+	lo.Info("Uponor thermostat", ts.Id, ts)
+	var err = sensor.PublishData(context.Background(), float32(ts.SetTemperature))
+	if err != nil {
+		lo.Error("Error while publishing uponor target temperature to mq!", "thermostat", ts, "target value", ts.SetTemperature)
 		return err
 	}
 	return nil
