@@ -8,6 +8,8 @@ import (
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/nordpool"
+	"github.com/jaanek/hassext/sqldb"
+	"github.com/jaanek/hassext/sqlite"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/zerodha/logf"
 )
@@ -20,7 +22,8 @@ type brain struct {
 	lo                                   logf.Logger
 	ha                                   homeassistant.HomeAssistant
 	mq                                   mq.MqttClient
-	uponorClient                         uponor.Uponor
+	uponorClient                         uponor.UponorClient
+	sqliteDir                            string
 	errors                               chan error
 	nordpoolPrices                       nordpool.NordpoolPrices
 	dishwasherStart                      time.Time
@@ -50,12 +53,13 @@ type brain struct {
 	uponorSaunaEesruum                   ThermostatState
 }
 
-func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.Uponor) Brain {
+func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.UponorClient, dataDir string) Brain {
 	return &brain{
 		lo:           lo,
 		ha:           ha,
 		mq:           mq,
 		uponorClient: uponorClient,
+		sqliteDir:    dataDir,
 		errors:       make(chan error, 10),
 	}
 }
@@ -163,4 +167,8 @@ func (b *brain) updateData() error {
 		b.errors <- err
 	}
 	return nil
+}
+
+func (b *brain) openAppDatabase() (*sqldb.DB, error) {
+	return sqlite.NewDB(b.lo, b.sqliteDir, sqlite.DBDefault, false)
 }

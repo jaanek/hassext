@@ -4,9 +4,12 @@ import (
 	"context"
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/sqldb"
+	"github.com/jaanek/hassext/thermostats"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/zerodha/logf"
 )
@@ -20,15 +23,15 @@ const (
 
 func (b *brain) Uponor(state data.DataValue) {
 	// current temperatures reading
-	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ELUTUBA), string(uponor.THERMOSTAT_ELUTUBA), "hassext/"+string(uponor.THERMOSTAT_ELUTUBA)+"_temp")
-	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ESIK), string(uponor.THERMOSTAT_ESIK), "hassext/"+string(uponor.THERMOSTAT_ESIK)+"_temp")
-	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_DUSSIRUUM), string(uponor.THERMOSTAT_DUSSIRUUM), "hassext/"+string(uponor.THERMOSTAT_DUSSIRUUM)+"_temp")
-	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_SAUNA_EESRUUM), string(uponor.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(uponor.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
+	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ELUTUBA_WALL), string(thermostats.THERMOSTAT_ELUTUBA_WALL), "hassext/"+string(thermostats.THERMOSTAT_ELUTUBA_WALL)+"_temp")
+	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ESIK), string(thermostats.THERMOSTAT_ESIK), "hassext/"+string(thermostats.THERMOSTAT_ESIK)+"_temp")
+	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_DUSSIRUUM), string(thermostats.THERMOSTAT_DUSSIRUUM), "hassext/"+string(thermostats.THERMOSTAT_DUSSIRUUM)+"_temp")
+	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_SAUNA_EESRUUM), string(thermostats.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(thermostats.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
 	// target temperatures set
-	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ELUTUBA_TARGET), string(uponor.THERMOSTAT_ELUTUBA_TARGET), "hassext/"+string(uponor.THERMOSTAT_ELUTUBA_TARGET)+"_temp")
-	tempTargetEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_ESIK_TARGET), string(uponor.THERMOSTAT_ESIK_TARGET), "hassext/"+string(uponor.THERMOSTAT_ESIK_TARGET)+"_temp")
-	tempTargetDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_DUSSIRUUM_TARGET), string(uponor.THERMOSTAT_DUSSIRUUM_TARGET), "hassext/"+string(uponor.THERMOSTAT_DUSSIRUUM_TARGET)+"_temp")
-	tempTargetSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(uponor.THERMOSTAT_SAUNA_EESRUUM_TARGET), string(uponor.THERMOSTAT_SAUNA_EESRUUM_TARGET), "hassext/"+string(uponor.THERMOSTAT_SAUNA_EESRUUM_TARGET)+"_temp")
+	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ELUTUBA_TARGET), string(thermostats.THERMOSTAT_ELUTUBA_TARGET), "hassext/"+string(thermostats.THERMOSTAT_ELUTUBA_TARGET)+"_temp")
+	tempTargetEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ESIK_TARGET), string(thermostats.THERMOSTAT_ESIK_TARGET), "hassext/"+string(thermostats.THERMOSTAT_ESIK_TARGET)+"_temp")
+	tempTargetDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_DUSSIRUUM_TARGET), string(thermostats.THERMOSTAT_DUSSIRUUM_TARGET), "hassext/"+string(thermostats.THERMOSTAT_DUSSIRUUM_TARGET)+"_temp")
+	tempTargetSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_SAUNA_EESRUUM_TARGET), string(thermostats.THERMOSTAT_SAUNA_EESRUUM_TARGET), "hassext/"+string(thermostats.THERMOSTAT_SAUNA_EESRUUM_TARGET)+"_temp")
 	sensors := make([]emodul.Sensor, 0)
 	sensors = append(
 		sensors,
@@ -55,12 +58,10 @@ func (b *brain) Uponor(state data.DataValue) {
 		b.lo.Warn("No uponor controller data available to fetch temperatures from!")
 		return
 	}
-	for _, v := range uponorData.Output.Vars {
-		parseSaveTemperatures(b.lo, ESIK, v, &b.uponorEsik)
-		parseSaveTemperatures(b.lo, ELUTUBA, v, &b.uponorElutuba)
-		parseSaveTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum)
-		parseSaveTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum)
-	}
+
+	// save/update all thermostat values
+	b.parseSaveAllTemperatures(uponorData)
+
 	// publish current temperatures
 	publishTemperature(b.lo, &b.uponorEsik, tempEsik)
 	publishTemperature(b.lo, &b.uponorElutuba, tempElutuba)
@@ -71,59 +72,36 @@ func (b *brain) Uponor(state data.DataValue) {
 	publishTargetTemperature(b.lo, &b.uponorElutuba, tempTargetElutuba)
 	publishTargetTemperature(b.lo, &b.uponorSaunaEesruum, tempTargetSaunaEesruum)
 	publishTargetTemperature(b.lo, &b.uponorDussiruum, tempTargetDussiruum)
+}
 
-	// // elutuba
-	// thermostat, err := ParseThermostatState(string(uponor.ENTITY_THERMOSTAT_ELUTUBA), state)
-	// if err != nil {
-	// 	b.errors <- err
-	// } else {
-	// 	var ts = *thermostat
-	// 	b.uponorElutuba = ts
-	// 	b.lo.Info("Uponor thermostat", "elutuba", ts)
-	// 	err = tempElutuba.PublishData(context.Background(), float32(ts.CurrentTemperature))
-	// 	if err != nil {
-	// 		b.lo.Error("Error while publishing uponor temperature to mq!", "thermostat", uponor.THERMOSTAT_ELUTUBA, "value", ts.CurrentTemperature)
-	// 	}
-	// }
-	// // esik
-	// thermostat, err = ParseThermostatState(string(uponor.ENTITY_THERMOSTAT_ESIK), state)
-	// if err != nil {
-	// 	b.errors <- err
-	// } else {
-	// 	var ts = *thermostat
-	// 	b.uponorEsik = ts
-	// 	b.lo.Info("Uponor thermostat", "esik", ts)
-	// 	err = tempEsik.PublishData(context.Background(), float32(ts.CurrentTemperature))
-	// 	if err != nil {
-	// 		b.lo.Error("Error while publishing uponor temperature to mq!", "thermostat", uponor.THERMOSTAT_ESIK, "value", ts.CurrentTemperature)
-	// 	}
-	// }
-	// // dussiruum
-	// thermostat, err = ParseThermostatState(string(uponor.ENTITY_THERMOSTAT_DUSSIRUUM), state)
-	// if err != nil {
-	// 	b.errors <- err
-	// } else {
-	// 	var ts = *thermostat
-	// 	b.uponorDussiruum = ts
-	// 	b.lo.Info("Uponor thermostat", "dussiruum", ts)
-	// 	err = tempDussiruum.PublishData(context.Background(), float32(ts.CurrentTemperature))
-	// 	if err != nil {
-	// 		b.lo.Error("Error while publishing uponor temperature to mq!", "thermostat", uponor.THERMOSTAT_DUSSIRUUM, "value", ts.CurrentTemperature)
-	// 	}
-	// }
-	// // sauna eesruum
-	// thermostat, err = ParseThermostatState(string(uponor.ENTITY_THERMOSTAT_SAUNA_EESRUUM), state)
-	// if err != nil {
-	// 	b.errors <- err
-	// } else {
-	// 	var ts = *thermostat
-	// 	b.uponorSaunaEesruum = ts
-	// 	b.lo.Info("Uponor thermostat", "sauna eesruum", ts)
-	// 	err = tempSaunaEesruum.PublishData(context.Background(), float32(ts.CurrentTemperature))
-	// 	if err != nil {
-	// 		b.lo.Error("Error while publishing uponor temperature to mq!", "thermostat", uponor.THERMOSTAT_SAUNA_EESRUUM, "value", ts.CurrentTemperature)
-	// 	}
-	// }
+func (b *brain) parseSaveAllTemperatures(uponorData *uponor.UponorControllerData) {
+	for _, v := range uponorData.Output.Vars {
+		parseSaveTemperatures(b.lo, ESIK, v, &b.uponorEsik, thermostats.THERMOSTAT_ESIK)
+		parseSaveTemperatures(b.lo, ELUTUBA, v, &b.uponorElutuba, thermostats.THERMOSTAT_ELUTUBA_WALL)
+		parseSaveTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum, thermostats.THERMOSTAT_SAUNA_EESRUUM)
+		parseSaveTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum, thermostats.THERMOSTAT_DUSSIRUUM)
+	}
+	// open local sqlite db
+	db, err := b.openAppDatabase()
+	if err != nil {
+		b.lo.Warn("No app database can be opened!", "error", err)
+		return
+	}
+	defer db.Close()
+	// save parsed temperature values to db
+	var now = time.Now()
+	b.saveTemperatureDB(db, &b.uponorEsik, thermostats.THERMOSTAT_ESIK, now)
+	b.saveTemperatureDB(db, &b.uponorElutuba, thermostats.THERMOSTAT_ELUTUBA_WALL, now)
+	b.saveTemperatureDB(db, &b.uponorSaunaEesruum, thermostats.THERMOSTAT_SAUNA_EESRUUM, now)
+	b.saveTemperatureDB(db, &b.uponorDussiruum, thermostats.THERMOSTAT_DUSSIRUUM, now)
+}
+
+func (b *brain) saveTemperatureDB(db *sqldb.DB, t *ThermostatState, name thermostats.ThermostatName, now time.Time) {
+	// save it to db
+	err := thermostats.ThermostatUpsert(db, name, t.SetTemperature, t.CurrentTemperature, now)
+	if err != nil {
+		b.lo.Error("Error while updating thermostat temperature value in db!", "error", err)
+	}
 }
 
 func publishTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Sensor) error {
@@ -146,7 +124,8 @@ func publishTargetTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul
 	return nil
 }
 
-func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState) {
+func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState, name thermostats.ThermostatName) {
+	t.Id = string(name)
 	if v.VarName == room+"_room_temperature" {
 		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
 		if err != nil {

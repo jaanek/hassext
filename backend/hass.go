@@ -106,7 +106,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	uponorClient := uponor.NewUponorClient(lo, &uponor.HttpClientParams{
 		Host: ko.String("uponor.host"),
 	})
-	brain := brain.NewBrain(lo, ha, mq, uponorClient)
+	brain := brain.NewBrain(lo, ha, mq, uponorClient, dataDir)
 
 	return &HassExt{
 		opts:        opts,

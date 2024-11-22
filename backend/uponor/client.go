@@ -9,24 +9,6 @@ import (
 	"github.com/zerodha/logf"
 )
 
-type ThermostatName string
-type EntityState string
-
-const (
-	THERMOSTAT_ELUTUBA              ThermostatName = "floor1_elutuba"
-	THERMOSTAT_ESIK                 ThermostatName = "floor1_esik"
-	THERMOSTAT_DUSSIRUUM            ThermostatName = "floor1_dussiruum"
-	THERMOSTAT_SAUNA_EESRUUM        ThermostatName = "floor1_sauna_eesruum"
-	THERMOSTAT_ELUTUBA_TARGET       ThermostatName = "floor1_elutuba_target"
-	THERMOSTAT_ESIK_TARGET          ThermostatName = "floor1_esik_target"
-	THERMOSTAT_DUSSIRUUM_TARGET     ThermostatName = "floor1_dussiruum_target"
-	THERMOSTAT_SAUNA_EESRUUM_TARGET ThermostatName = "floor1_sauna_eesruum_target"
-	ENTITY_THERMOSTAT_ELUTUBA       EntityState    = "climate.elutuba"
-	ENTITY_THERMOSTAT_ESIK          EntityState    = "climate.kook_esik"
-	ENTITY_THERMOSTAT_DUSSIRUUM     EntityState    = "climate.dussiruum"
-	ENTITY_THERMOSTAT_SAUNA_EESRUUM EntityState    = "climate.sauna_eesruum"
-)
-
 var (
 	DeviceUponorWallThermostat = emodul.SensorMqttConfigDevice{
 		Identifiers:  []string{"hassext_uponor_wall_thermostat"},
@@ -54,12 +36,12 @@ var (
 	// }
 )
 
-type Uponor interface {
+type UponorClient interface {
 	FetchData() error
 	GetData() *UponorControllerData
 }
 
-type uponor struct {
+type uponorClient struct {
 	lo     logf.Logger
 	http   httpclient.HttpClient
 	params *HttpClientParams
@@ -71,15 +53,15 @@ type HttpClientParams struct {
 	Host string
 }
 
-func NewUponorClient(lo logf.Logger, params *HttpClientParams) Uponor {
-	return &uponor{
+func NewUponorClient(lo logf.Logger, params *HttpClientParams) UponorClient {
+	return &uponorClient{
 		lo:     lo,
 		http:   httpclient.New(nil, getApiDefaultRetryCheckPolicy(lo, params), defaultRetryWaitDelay, false),
 		params: params,
 	}
 }
 
-func (m *uponor) GetData() *UponorControllerData {
+func (m *uponorClient) GetData() *UponorControllerData {
 	return &m.data
 }
 
@@ -95,7 +77,7 @@ type UponorControllerData struct {
 	}
 }
 
-func (m *uponor) FetchData() error {
+func (m *uponorClient) FetchData() error {
 	m.data = UponorControllerData{}
 	var input = []byte("{}")
 	_, err := httpclient.Post(m.http, "http://"+m.params.Host+"/JNAP/", input, func(req *httpclient.Request) {
