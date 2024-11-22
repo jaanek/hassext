@@ -1,4 +1,4 @@
-package thermostats
+package floorheating
 
 import (
 	"context"

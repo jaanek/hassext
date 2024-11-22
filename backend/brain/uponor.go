@@ -8,8 +8,8 @@ import (
 
 	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/floorheating"
 	"github.com/jaanek/hassext/sqldb"
-	"github.com/jaanek/hassext/thermostats"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/zerodha/logf"
 )
@@ -23,15 +23,15 @@ const (
 
 func (b *brain) Uponor(state data.DataValue) {
 	// current temperatures reading
-	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ELUTUBA_WALL), string(thermostats.THERMOSTAT_ELUTUBA_WALL), "hassext/"+string(thermostats.THERMOSTAT_ELUTUBA_WALL)+"_temp")
-	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ESIK), string(thermostats.THERMOSTAT_ESIK), "hassext/"+string(thermostats.THERMOSTAT_ESIK)+"_temp")
-	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_DUSSIRUUM), string(thermostats.THERMOSTAT_DUSSIRUUM), "hassext/"+string(thermostats.THERMOSTAT_DUSSIRUUM)+"_temp")
-	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_SAUNA_EESRUUM), string(thermostats.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(thermostats.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
+	tempElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ELUTUBA_WALL), string(floorheating.THERMOSTAT_ELUTUBA_WALL), "hassext/"+string(floorheating.THERMOSTAT_ELUTUBA_WALL)+"_temp")
+	tempEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ESIK), string(floorheating.THERMOSTAT_ESIK), "hassext/"+string(floorheating.THERMOSTAT_ESIK)+"_temp")
+	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_DUSSIRUUM), string(floorheating.THERMOSTAT_DUSSIRUUM), "hassext/"+string(floorheating.THERMOSTAT_DUSSIRUUM)+"_temp")
+	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_SAUNA_EESRUUM), string(floorheating.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(floorheating.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
 	// target temperatures set
-	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ELUTUBA_TARGET), string(thermostats.THERMOSTAT_ELUTUBA_TARGET), "hassext/"+string(thermostats.THERMOSTAT_ELUTUBA_TARGET)+"_temp")
-	tempTargetEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_ESIK_TARGET), string(thermostats.THERMOSTAT_ESIK_TARGET), "hassext/"+string(thermostats.THERMOSTAT_ESIK_TARGET)+"_temp")
-	tempTargetDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_DUSSIRUUM_TARGET), string(thermostats.THERMOSTAT_DUSSIRUUM_TARGET), "hassext/"+string(thermostats.THERMOSTAT_DUSSIRUUM_TARGET)+"_temp")
-	tempTargetSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(thermostats.THERMOSTAT_SAUNA_EESRUUM_TARGET), string(thermostats.THERMOSTAT_SAUNA_EESRUUM_TARGET), "hassext/"+string(thermostats.THERMOSTAT_SAUNA_EESRUUM_TARGET)+"_temp")
+	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ELUTUBA_TARGET), string(floorheating.THERMOSTAT_ELUTUBA_TARGET), "hassext/"+string(floorheating.THERMOSTAT_ELUTUBA_TARGET)+"_temp")
+	tempTargetEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ESIK_TARGET), string(floorheating.THERMOSTAT_ESIK_TARGET), "hassext/"+string(floorheating.THERMOSTAT_ESIK_TARGET)+"_temp")
+	tempTargetDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_DUSSIRUUM_TARGET), string(floorheating.THERMOSTAT_DUSSIRUUM_TARGET), "hassext/"+string(floorheating.THERMOSTAT_DUSSIRUUM_TARGET)+"_temp")
+	tempTargetSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_SAUNA_EESRUUM_TARGET), string(floorheating.THERMOSTAT_SAUNA_EESRUUM_TARGET), "hassext/"+string(floorheating.THERMOSTAT_SAUNA_EESRUUM_TARGET)+"_temp")
 	sensors := make([]emodul.Sensor, 0)
 	sensors = append(
 		sensors,
@@ -76,10 +76,10 @@ func (b *brain) Uponor(state data.DataValue) {
 
 func (b *brain) parseSaveAllTemperatures(uponorData *uponor.UponorControllerData) {
 	for _, v := range uponorData.Output.Vars {
-		parseSaveTemperatures(b.lo, ESIK, v, &b.uponorEsik, thermostats.THERMOSTAT_ESIK)
-		parseSaveTemperatures(b.lo, ELUTUBA, v, &b.uponorElutuba, thermostats.THERMOSTAT_ELUTUBA_WALL)
-		parseSaveTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum, thermostats.THERMOSTAT_SAUNA_EESRUUM)
-		parseSaveTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum, thermostats.THERMOSTAT_DUSSIRUUM)
+		parseSaveTemperatures(b.lo, ESIK, v, &b.uponorEsik, floorheating.THERMOSTAT_ESIK)
+		parseSaveTemperatures(b.lo, ELUTUBA, v, &b.uponorElutuba, floorheating.THERMOSTAT_ELUTUBA_WALL)
+		parseSaveTemperatures(b.lo, SAUNA_EESRUUM, v, &b.uponorSaunaEesruum, floorheating.THERMOSTAT_SAUNA_EESRUUM)
+		parseSaveTemperatures(b.lo, DUSSIRUUM, v, &b.uponorDussiruum, floorheating.THERMOSTAT_DUSSIRUUM)
 	}
 	// open local sqlite db
 	db, err := b.openAppDatabase()
@@ -90,15 +90,15 @@ func (b *brain) parseSaveAllTemperatures(uponorData *uponor.UponorControllerData
 	defer db.Close()
 	// save parsed temperature values to db
 	var now = time.Now()
-	b.saveTemperatureDB(db, &b.uponorEsik, thermostats.THERMOSTAT_ESIK, now)
-	b.saveTemperatureDB(db, &b.uponorElutuba, thermostats.THERMOSTAT_ELUTUBA_WALL, now)
-	b.saveTemperatureDB(db, &b.uponorSaunaEesruum, thermostats.THERMOSTAT_SAUNA_EESRUUM, now)
-	b.saveTemperatureDB(db, &b.uponorDussiruum, thermostats.THERMOSTAT_DUSSIRUUM, now)
+	b.saveTemperatureDB(db, &b.uponorEsik, floorheating.THERMOSTAT_ESIK, now)
+	b.saveTemperatureDB(db, &b.uponorElutuba, floorheating.THERMOSTAT_ELUTUBA_WALL, now)
+	b.saveTemperatureDB(db, &b.uponorSaunaEesruum, floorheating.THERMOSTAT_SAUNA_EESRUUM, now)
+	b.saveTemperatureDB(db, &b.uponorDussiruum, floorheating.THERMOSTAT_DUSSIRUUM, now)
 }
 
-func (b *brain) saveTemperatureDB(db *sqldb.DB, t *ThermostatState, name thermostats.ThermostatName, now time.Time) {
+func (b *brain) saveTemperatureDB(db *sqldb.DB, t *ThermostatState, name floorheating.ThermostatName, now time.Time) {
 	// save it to db
-	err := thermostats.ThermostatUpsert(db, name, t.SetTemperature, t.CurrentTemperature, now)
+	err := floorheating.ThermostatUpsert(db, name, t.SetTemperature, t.CurrentTemperature, now)
 	if err != nil {
 		b.lo.Error("Error while updating thermostat temperature value in db!", "error", err)
 	}
@@ -124,7 +124,7 @@ func publishTargetTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul
 	return nil
 }
 
-func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState, name thermostats.ThermostatName) {
+func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState, name floorheating.ThermostatName) {
 	t.Id = string(name)
 	if v.VarName == room+"_room_temperature" {
 		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
