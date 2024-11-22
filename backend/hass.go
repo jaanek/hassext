@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -12,10 +14,14 @@ import (
 	"github.com/jaanek/hassext/emodul"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/hub"
+	"github.com/jaanek/hassext/mailer"
 	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/rest"
+	"github.com/jaanek/hassext/sms"
+	"github.com/jaanek/hassext/smtp"
 	"github.com/jaanek/hassext/snapcast"
 	"github.com/jaanek/hassext/sound"
+	"github.com/jaanek/hassext/sqlite"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/knadh/koanf"
 	"github.com/zerodha/logf"
@@ -33,12 +39,38 @@ type HassExt struct {
 	HA          homeassistant.HomeAssistant
 	Brain       brain.Brain
 	Chromecasts chromecast.Chromecasts
+	Mailer      mailer.Mailer
+	SmsSender   sms.Sender
 }
 
 // init home assistant integration
 func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
+	env := os.Getenv("GO_ENV")
+	if env == "" {
+		env = "development"
+	}
+	env = strings.ToLower(env)
+	env = strings.TrimSpace(env)
+	var isProd = env == "production"
+	if isProd {
+		lo.Info(fmt.Sprintf("*************** Running in %s ********************", env))
+	}
+
 	// Set options
 	opts := DefaultOptions()
+
+	// create/open the sqlite databases
+	var dataDir = ko.String("sqldb.dataDir")
+	appDb, err := sqlite.NewDB(lo, dataDir, "default", true)
+	if err != nil {
+		return nil, fmt.Errorf("Error while opening sqlite database: %v. Error: %w", "default", err)
+	}
+	appDb.Close() // we do not need the instance here
+
+	// mailer
+	mailersendSmtp := smtp.New(lo, smtp.MAILSENDER, ko.String("smtp.host"), ko.Int("smtp.port"), ko.String("smtp.username"), ko.String("smtp.password"), ko.String("smtp.fromEmail"), ko.String("smtp.fromName"))
+	mailer := mailer.New(lo, dataDir, mailersendSmtp)
+	smsSender := sms.New(lo, &sms.HttpClientParams{}, ko.String("sms.url"), ko.String("sms.token"), dataDir, mailer)
 
 	// mqtt client url
 	uri, err := url.Parse(ko.String("mqtt.url"))
@@ -88,6 +120,8 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		HA:          ha,
 		Brain:       brain,
 		Chromecasts: chromecasts,
+		Mailer:      mailer,
+		SmsSender:   smsSender,
 	}, nil
 }
 
@@ -96,6 +130,12 @@ func (h *HassExt) Run(ctx context.Context) error {
 	go func() {
 		h.Hub.Run(ctx)
 	}()
+
+	err := h.Mailer.Start(ctx)
+	if err != nil {
+		return err
+	}
+	h.SmsSender.Start(ctx)
 
 	// start sound listener
 	go func() {
@@ -112,7 +152,7 @@ func (h *HassExt) Run(ctx context.Context) error {
 	}()
 
 	// connect to the mq so that messages start flowing to the hub
-	_, err := h.Mq.Connect(ctx, 30*time.Second)
+	_, err = h.Mq.Connect(ctx, 30*time.Second)
 	if err != nil {
 		return err
 	}
@@ -145,6 +185,8 @@ func (h *HassExt) Shutdown() {
 	h.Mq.Disconnect()
 	h.Chromecasts.Stop(context.Background())
 	h.Rest.Shutdown(context.Background())
+	h.Mailer.Stop(context.Background())
+	h.SmsSender.Stop(context.Background())
 	h.Lo.Info("Hass shutdown success")
 }
 
