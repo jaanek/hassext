@@ -12,6 +12,7 @@ import (
 	"github.com/jaanek/hassext/brain"
 	"github.com/jaanek/hassext/chromecast"
 	"github.com/jaanek/hassext/emodul"
+	"github.com/jaanek/hassext/floorheating"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/hub"
 	"github.com/jaanek/hassext/mailer"
@@ -28,19 +29,20 @@ import (
 )
 
 type HassExt struct {
-	opts        *Options
-	Lo          logf.Logger
-	Hub         *hub.Hub
-	Mq          mq.MqttClient
-	Emodul      emodul.EModul
-	Snapcast    snapcast.Snapcast
-	Rest        *rest.Rest
-	Sound       sound.Sound
-	HA          homeassistant.HomeAssistant
-	Brain       brain.Brain
-	Chromecasts chromecast.Chromecasts
-	Mailer      mailer.Mailer
-	SmsSender   sms.Sender
+	opts         *Options
+	Lo           logf.Logger
+	Hub          *hub.Hub
+	Mq           mq.MqttClient
+	Emodul       emodul.EModul
+	Snapcast     snapcast.Snapcast
+	Rest         *rest.Rest
+	Sound        sound.Sound
+	HA           homeassistant.HomeAssistant
+	Brain        brain.Brain
+	Chromecasts  chromecast.Chromecasts
+	Mailer       mailer.Mailer
+	SmsSender    sms.Sender
+	FloorHeating floorheating.FloorHeating
 }
 
 // init home assistant integration
@@ -106,22 +108,24 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	uponorClient := uponor.NewUponorClient(lo, &uponor.HttpClientParams{
 		Host: ko.String("uponor.host"),
 	})
-	brain := brain.NewBrain(lo, ha, mq, uponorClient, dataDir)
+	flootHeating := floorheating.New(lo, dataDir, mq)
+	brain := brain.NewBrain(lo, ha, mq, uponorClient, dataDir, flootHeating)
 
 	return &HassExt{
-		opts:        opts,
-		Lo:          lo,
-		Hub:         hub,
-		Mq:          mq,
-		Emodul:      em,
-		Snapcast:    sc,
-		Rest:        r,
-		Sound:       sound,
-		HA:          ha,
-		Brain:       brain,
-		Chromecasts: chromecasts,
-		Mailer:      mailer,
-		SmsSender:   smsSender,
+		opts:         opts,
+		Lo:           lo,
+		Hub:          hub,
+		Mq:           mq,
+		Emodul:       em,
+		Snapcast:     sc,
+		Rest:         r,
+		Sound:        sound,
+		HA:           ha,
+		Brain:        brain,
+		Chromecasts:  chromecasts,
+		Mailer:       mailer,
+		SmsSender:    smsSender,
+		FloorHeating: flootHeating,
 	}, nil
 }
 

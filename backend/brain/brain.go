@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jaanek/hassext/floorheating"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/mq"
 	"github.com/jaanek/hassext/nordpool"
@@ -25,6 +26,7 @@ type brain struct {
 	uponorClient                         uponor.UponorClient
 	sqliteDir                            string
 	errors                               chan error
+	flootHeating                         floorheating.FloorHeating
 	nordpoolPrices                       nordpool.NordpoolPrices
 	dishwasherStart                      time.Time
 	heapPumpHeatingAllowedWinterMode     EntityState
@@ -51,16 +53,19 @@ type brain struct {
 	uponorEsik                           ThermostatState
 	uponorDussiruum                      ThermostatState
 	uponorSaunaEesruum                   ThermostatState
+	floorHeatingValves                   map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState
 }
 
-func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.UponorClient, dataDir string) Brain {
+func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.UponorClient, dataDir string, floorHeating floorheating.FloorHeating) Brain {
 	return &brain{
-		lo:           lo,
-		ha:           ha,
-		mq:           mq,
-		uponorClient: uponorClient,
-		sqliteDir:    dataDir,
-		errors:       make(chan error, 10),
+		lo:                 lo,
+		ha:                 ha,
+		mq:                 mq,
+		uponorClient:       uponorClient,
+		sqliteDir:          dataDir,
+		flootHeating:       floorHeating,
+		errors:             make(chan error, 10),
+		floorHeatingValves: map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState{},
 	}
 }
 
@@ -127,6 +132,7 @@ func (b *brain) onDataUpdate() {
 	b.Emodule(state)
 	b.HeatPump(state)
 	b.Komfovent(state)
+	b.FloorHeating(state)
 
 	// update states
 	err = b.updateData()
@@ -163,6 +169,12 @@ func (b *brain) updateData() error {
 
 	// dishwasher
 	err = b.SetDishwasherStartTime(tomorrowPrices)
+	if err != nil {
+		b.errors <- err
+	}
+
+	// floorheating
+	err = b.UpdateFloorheatingValves(b.floorHeatingValves)
 	if err != nil {
 		b.errors <- err
 	}
