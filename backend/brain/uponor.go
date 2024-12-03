@@ -2,13 +2,13 @@ package brain
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"time"
 
 	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/emodul"
 	"github.com/jaanek/hassext/floorheating"
-	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/zerodha/logf"
 )
@@ -118,13 +118,13 @@ func publishTargetTemperature(lo logf.Logger, ts *ClimateState, sensor emodul.Se
 func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ClimateState, name floorheating.ThermostatName) {
 	t.Id = string(name)
 	if v.VarName == room+"_room_temperature" {
-		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
+		fahrenheit, err := strconv.ParseFloat(v.VarValue, 64)
 		if err != nil {
 			lo.Error("Error while converting string value to float! VarName: %v", v.VarName)
 		}
 		fahrenheit = fahrenheit / 10 // because data contains the value like 743 not 74.3
 		var temperature = uponor.FahrenheitToCelsius(fahrenheit)
-		t.CurrentTemperature = homeassistant.Truncate(temperature, 1)
+		t.CurrentTemperature = math.Round(temperature*10) / 10 // homeassistant.Truncate(temperature, 1)
 		lo.Info("Setting room temperature", room, temperature, "original", v.VarValue, "parsed fahrenheit", fahrenheit)
 	} else if v.VarName == room+"_setpoint" {
 		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
@@ -134,6 +134,6 @@ func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, 
 		fahrenheit = fahrenheit / 10 // because data contains the value like 743 not 74.3
 		var temperature = uponor.FahrenheitToCelsius(fahrenheit)
 		lo.Info("Setting setpoint temperature", room, temperature, "original", v.VarValue, "parsed fahrenheit", fahrenheit)
-		t.SetTemperature = homeassistant.Truncate(temperature, 1)
+		t.SetTemperature = math.Round(temperature*10) / 10 // homeassistant.Truncate(temperature, 1)
 	}
 }
