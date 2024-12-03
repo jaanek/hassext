@@ -29,7 +29,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	// 	b.lo.Info("HeatPump", "automation water tank stop", *entity)
 	// }
 	// heating
-	thermostat, err := ParseThermostatState(string(heatpump.ENTITY_HEATING), state)
+	thermostat, err := ParseClimateState(string(heatpump.ENTITY_HEATING), state)
 	if err != nil {
 		b.errors <- err
 	} else {
@@ -37,7 +37,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 		b.lo.Info("HeatPump", "heating", *thermostat)
 	}
 	// water tank/heater
-	thermostat, err = ParseThermostatState(string(heatpump.ENTITY_WATER_HEATER), state)
+	thermostat, err = ParseClimateState(string(heatpump.ENTITY_WATER_HEATER), state)
 	if err != nil {
 		b.errors <- err
 	} else {

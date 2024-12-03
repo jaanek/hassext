@@ -19,14 +19,14 @@ type FloorHeatingValveStateId string
 
 const (
 	// floor heating valves
+	FLOOR_HEATING_VALVE_ESIK          FloorHeatingValveStateId = "tasmota"   // floor1_esik
 	FLOOR_HEATING_VALVE_ELUTUBA_1     FloorHeatingValveStateId = "tasmota_2" // floor1_elutuba1
 	FLOOR_HEATING_VALVE_ELUTUBA_2     FloorHeatingValveStateId = "tasmota_3" // floor1_elutuba2
-	FLOOR_HEATING_VALVE_ESIK          FloorHeatingValveStateId = "tasmota"   // floor1_esik
 	FLOOR_HEATING_VALVE_KITCHEN       FloorHeatingValveStateId = "tasmota_4" // floor1_kook
 	FLOOR_HEATING_VALVE_DUSSIRUUM     FloorHeatingValveStateId = "tasmota_5" // floor1_dussiruum
 	FLOOR_HEATING_VALVE_SAUNA_EESRUUM FloorHeatingValveStateId = "tasmota_6" // floor1_sauna_eesruum
-	FLOOR_HEATING_VALVE_SUUR_KORIDOR1 FloorHeatingValveStateId = "tasmota_8" // floor1_suur_koridor1
 	FLOOR_HEATING_VALVE_SUUR_KORIDOR2 FloorHeatingValveStateId = "tasmota_7" // floor1_suur_koridor2
+	FLOOR_HEATING_VALVE_SUUR_KORIDOR1 FloorHeatingValveStateId = "tasmota_8" // floor1_suur_koridor1
 )
 
 var ValveRefIds = []FloorHeatingValveStateId{
@@ -261,10 +261,14 @@ func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 	case THERMOSTAT_ELUTUBA_WALL:
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_1)
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_2)
-		section = THERMOSTAT_ELUTUBA_TARGET
+		section = THERMOSTAT_ELUTUBA_WALL_TARGET
 	case THERMOSTAT_ESIK:
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_KITCHEN)
 		section = THERMOSTAT_ESIK_TARGET
+	case THERMOSTAT_SUUR_KORIDOR_WORKPLACE:
+		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_SUUR_KORIDOR1)
+		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_SUUR_KORIDOR2)
+		section = THERMOSTAT_SUUR_KORIDOR_WORKPLACE_TARGET
 	}
 	return ResolvedValves{valves, upGap, downGap, section}
 }

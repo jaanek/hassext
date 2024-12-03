@@ -2,14 +2,13 @@ package brain
 
 import (
 	"context"
-	"math"
 	"strconv"
 	"time"
 
 	"github.com/jaanek/hassext/data"
 	"github.com/jaanek/hassext/emodul"
 	"github.com/jaanek/hassext/floorheating"
-	"github.com/jaanek/hassext/sqldb"
+	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/zerodha/logf"
 )
@@ -28,7 +27,7 @@ func (b *brain) Uponor(state data.DataValue) {
 	tempDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_DUSSIRUUM), string(floorheating.THERMOSTAT_DUSSIRUUM), "hassext/"+string(floorheating.THERMOSTAT_DUSSIRUUM)+"_temp")
 	tempSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_SAUNA_EESRUUM), string(floorheating.THERMOSTAT_SAUNA_EESRUUM), "hassext/"+string(floorheating.THERMOSTAT_SAUNA_EESRUUM)+"_temp")
 	// target temperatures set
-	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ELUTUBA_TARGET), string(floorheating.THERMOSTAT_ELUTUBA_TARGET), "hassext/"+string(floorheating.THERMOSTAT_ELUTUBA_TARGET)+"_temp")
+	tempTargetElutuba := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ELUTUBA_WALL_TARGET), string(floorheating.THERMOSTAT_ELUTUBA_WALL_TARGET), "hassext/"+string(floorheating.THERMOSTAT_ELUTUBA_WALL_TARGET)+"_temp")
 	tempTargetEsik := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_ESIK_TARGET), string(floorheating.THERMOSTAT_ESIK_TARGET), "hassext/"+string(floorheating.THERMOSTAT_ESIK_TARGET)+"_temp")
 	tempTargetDussiruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_DUSSIRUUM_TARGET), string(floorheating.THERMOSTAT_DUSSIRUUM_TARGET), "hassext/"+string(floorheating.THERMOSTAT_DUSSIRUUM_TARGET)+"_temp")
 	tempTargetSaunaEesruum := emodul.NewMqttTemperatureSensor(b.lo, b.mq, uponor.DeviceUponorWallThermostat, string(floorheating.THERMOSTAT_SAUNA_EESRUUM_TARGET), string(floorheating.THERMOSTAT_SAUNA_EESRUUM_TARGET), "hassext/"+string(floorheating.THERMOSTAT_SAUNA_EESRUUM_TARGET)+"_temp")
@@ -96,15 +95,7 @@ func (b *brain) parseSaveAllTemperatures(uponorData *uponor.UponorControllerData
 	b.saveTemperatureDB(db, &b.uponorDussiruum, floorheating.THERMOSTAT_DUSSIRUUM, now)
 }
 
-func (b *brain) saveTemperatureDB(db *sqldb.DB, t *ThermostatState, name floorheating.ThermostatName, now time.Time) {
-	// save it to db
-	err := floorheating.ThermostatUpsert(db, name, t.SetTemperature, t.CurrentTemperature, now)
-	if err != nil {
-		b.lo.Error("Error while updating thermostat temperature value in db!", "error", err)
-	}
-}
-
-func publishTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Sensor) error {
+func publishTemperature(lo logf.Logger, ts *ClimateState, sensor emodul.Sensor) error {
 	lo.Info("Uponor thermostat", ts.Id, ts)
 	var err = sensor.PublishData(context.Background(), float32(ts.CurrentTemperature))
 	if err != nil {
@@ -114,7 +105,7 @@ func publishTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Senso
 	return nil
 }
 
-func publishTargetTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul.Sensor) error {
+func publishTargetTemperature(lo logf.Logger, ts *ClimateState, sensor emodul.Sensor) error {
 	lo.Info("Uponor thermostat", ts.Id, ts)
 	var err = sensor.PublishData(context.Background(), float32(ts.SetTemperature))
 	if err != nil {
@@ -124,7 +115,7 @@ func publishTargetTemperature(lo logf.Logger, ts *ThermostatState, sensor emodul
 	return nil
 }
 
-func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ThermostatState, name floorheating.ThermostatName) {
+func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, t *ClimateState, name floorheating.ThermostatName) {
 	t.Id = string(name)
 	if v.VarName == room+"_room_temperature" {
 		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
@@ -133,7 +124,7 @@ func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, 
 		}
 		fahrenheit = fahrenheit / 10 // because data contains the value like 743 not 74.3
 		var temperature = uponor.FahrenheitToCelsius(fahrenheit)
-		t.CurrentTemperature = truncate(temperature, 1)
+		t.CurrentTemperature = homeassistant.Truncate(temperature, 1)
 		lo.Info("Setting room temperature", room, temperature, "original", v.VarValue, "parsed fahrenheit", fahrenheit)
 	} else if v.VarName == room+"_setpoint" {
 		fahrenheit, err := strconv.ParseFloat(v.VarValue, 32)
@@ -143,11 +134,6 @@ func parseSaveTemperatures(lo logf.Logger, room string, v uponor.UponorWaspVar, 
 		fahrenheit = fahrenheit / 10 // because data contains the value like 743 not 74.3
 		var temperature = uponor.FahrenheitToCelsius(fahrenheit)
 		lo.Info("Setting setpoint temperature", room, temperature, "original", v.VarValue, "parsed fahrenheit", fahrenheit)
-		t.SetTemperature = truncate(temperature, 1)
+		t.SetTemperature = homeassistant.Truncate(temperature, 1)
 	}
-}
-
-func truncate(f float64, decimals int) float64 {
-	shift := math.Pow(10, float64(decimals))
-	return math.Trunc(f*shift) / shift
 }

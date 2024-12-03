@@ -1,45 +1,19 @@
 package brain
 
 import (
-	"fmt"
-
 	"github.com/jaanek/hassext/data"
+	"github.com/jaanek/hassext/floorheating"
+	"github.com/jaanek/hassext/homeassistant"
 )
 
-type ThermostatState struct {
-	Id                 string  `json:"entity_id"`
-	State              string  `json:"state"`
-	CurrentTemperature float64 `json:"current_temperature"`
-	SetTemperature     float64 `json:"temperature"` // temp set on termostat
-}
-
-func ParseThermostatState(entityId string, state data.DataValue) (*ThermostatState, error) {
-	var entity ThermostatState = ThermostatState{
-		Id: entityId,
+func (b *brain) Thermostats(state data.DataValue) {
+	for _, refId := range floorheating.ValveRefIds {
+		valveState, err := homeassistant.ParseSwitchState(homeassistant.StateSwitchPrefix+string(refId), state)
+		if err != nil {
+			b.errors <- err
+		} else {
+			b.floorHeatingValves[refId] = valveState
+			b.lo.Info("FloorHeating", "valve state", *valveState)
+		}
 	}
-	var errors data.Errors
-
-	// get sensor data
-	entityPath := fmt.Sprintf("$[?(@.entity_id == \"%v\")]", entityId)
-	parent := state.GetObject(entityPath)
-	if parent == nil {
-		return nil, fmt.Errorf("Entity state not found! entity_id: %v", entityId)
-	}
-	entityData := data.NewDataValue(parent)
-	entity.State = entityData.GetString("$.state", &errors)
-	entity.CurrentTemperature = entityData.GetFloat64("$.attributes.current_temperature", &errors)
-	entity.SetTemperature = entityData.GetFloat64("$.attributes.temperature", &errors)
-	if errors.HasAny() {
-		return nil, fmt.Errorf("%s parsing error: %w", entityId, errors.FirstError())
-	}
-	return &entity, nil
-}
-
-func NewThermostat(entityId string, currentTemp float64, setTemp float64) ThermostatState {
-	var entity = ThermostatState{
-		Id: entityId,
-	}
-	entity.CurrentTemperature = currentTemp
-	entity.SetTemperature = setTemp
-	return entity
 }

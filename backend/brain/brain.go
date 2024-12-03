@@ -37,8 +37,8 @@ type brain struct {
 	heapPumpTriggerWaterHeaterBoost      EntityState // example: "on" / "off"
 	heapPumpTriggerHeatingSetTemp        EntityState
 	heapPumpHeatingIgnoreMaxPricePerHour EntityState // example: "on" / "off"
-	heatPumpHeating                      ThermostatState
-	heatPumpWaterHeater                  ThermostatState
+	heatPumpHeating                      ClimateState
+	heatPumpWaterHeater                  ClimateState
 	heatPumpWaterHeaterStartState        EntityState // example: "03:00:00"
 	heatPumpWaterHeaterStopState         EntityState // example: "06:00:00"
 	heatPumpWaterHeaterStart             time.Time
@@ -49,23 +49,27 @@ type brain struct {
 	emodulOperationMode                  EntityState
 	emodulOutsideTemp                    float64
 	emodulBoilerTemp                     float64
-	uponorElutuba                        ThermostatState
-	uponorEsik                           ThermostatState
-	uponorDussiruum                      ThermostatState
-	uponorSaunaEesruum                   ThermostatState
+	uponorElutuba                        ClimateState
+	uponorEsik                           ClimateState
+	uponorDussiruum                      ClimateState
+	uponorSaunaEesruum                   ClimateState
 	floorHeatingValves                   map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState
+	floorHeatingSimpleThermostats        map[floorheating.ThermostatName]*homeassistant.ThermostatState
+	floorHeatingSimpleThermostatTargets  map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.UponorClient, dataDir string, floorHeating floorheating.FloorHeating) Brain {
 	return &brain{
-		lo:                 lo,
-		ha:                 ha,
-		mq:                 mq,
-		uponorClient:       uponorClient,
-		sqliteDir:          dataDir,
-		flootHeating:       floorHeating,
-		errors:             make(chan error, 10),
-		floorHeatingValves: map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState{},
+		lo:                                  lo,
+		ha:                                  ha,
+		mq:                                  mq,
+		uponorClient:                        uponorClient,
+		sqliteDir:                           dataDir,
+		flootHeating:                        floorHeating,
+		errors:                              make(chan error, 10),
+		floorHeatingValves:                  map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState{},
+		floorHeatingSimpleThermostats:       map[floorheating.ThermostatName]*homeassistant.ThermostatState{},
+		floorHeatingSimpleThermostatTargets: map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState{},
 	}
 }
 
