@@ -256,8 +256,8 @@ type ResolvedValves struct {
 
 func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 	var valves = []FloorheatingValve{}
-	var upGap float32 = 0.1
-	var downGap float32 = 0.1
+	var upGap float32 = 0.3
+	var downGap float32 = -0.1
 	var section ThermostatTargetName
 	switch name {
 	case THERMOSTAT_SAUNA_EESRUUM:
