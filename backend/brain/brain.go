@@ -53,6 +53,7 @@ type brain struct {
 	uponorEsik                           ClimateState
 	uponorDussiruum                      ClimateState
 	uponorSaunaEesruum                   ClimateState
+	floorHeatingManualOperation          homeassistant.SwitchState
 	floorHeatingValves                   map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState
 	floorHeatingSimpleThermostats        map[floorheating.ThermostatName]*homeassistant.ThermostatState
 	floorHeatingSimpleThermostatTargets  map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState

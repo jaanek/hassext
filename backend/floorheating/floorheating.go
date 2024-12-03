@@ -29,6 +29,14 @@ const (
 	FLOOR_HEATING_VALVE_SUUR_KORIDOR1 FloorHeatingValveStateId = "tasmota_8" // floor1_suur_koridor1
 )
 
+type FloorHeatingManualOperationState string
+
+const (
+	FLOOR_HEATING_MANUAL_OPERATION_SWITCH FloorHeatingManualOperationState = "floorheating_valves_manual_operation"
+	FloorHeatingManualOperationOff                                         = "off"
+	FloorHeatingManualOperationOn                                          = "on"
+)
+
 var ValveRefIds = []FloorHeatingValveStateId{
 	FLOOR_HEATING_VALVE_ELUTUBA_1,
 	FLOOR_HEATING_VALVE_ELUTUBA_2,
@@ -188,10 +196,10 @@ func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValve
 		t.log.Info(t.prefix+"Thermostat reading", "name", ts.Name, "current temperature", ts.CurrentTemperature, "target temperature", ts.TargetTemperature, "last update", ts.LastUpdate)
 		var resolvedValves = t.resolveValves(ThermostatName(ts.Name))
 		var turnAction *FloorHeatingValveStatus
-		if ts.CurrentTemperature >= ts.TargetTemperature+resolvedValves.upGap {
+		if ts.CurrentTemperature > ts.TargetTemperature+resolvedValves.upGap {
 			// t.log.Info(t.prefix+"Turning OFF floor heating", "trigger thermostat name", ts.Name)
 			turnAction = &turnOff
-		} else if ts.CurrentTemperature <= ts.TargetTemperature-resolvedValves.downGap {
+		} else if ts.CurrentTemperature < ts.TargetTemperature-resolvedValves.downGap {
 			// t.log.Info(t.prefix+"Turning ON floor heating", "trigger thermostat name", ts.Name)
 			turnAction = &turnOn
 		}
@@ -249,7 +257,7 @@ type ResolvedValves struct {
 func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 	var valves = []FloorheatingValve{}
 	var upGap float32 = 0.1
-	var downGap float32 = 0.2
+	var downGap float32 = 0.1
 	var section ThermostatTargetName
 	switch name {
 	case THERMOSTAT_SAUNA_EESRUUM:

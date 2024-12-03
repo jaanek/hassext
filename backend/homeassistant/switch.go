@@ -46,6 +46,7 @@ type SwitchState struct {
 }
 
 const StateSwitchPrefix = "switch."
+const StateInputBooleanPrefix = "input_boolean."
 
 func ParseSwitchState(entityId string, state data.DataValue) (*SwitchState, error) {
 	var entity SwitchState = SwitchState{

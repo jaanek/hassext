@@ -9,6 +9,14 @@ import (
 )
 
 func (b *brain) FloorHeating(state data.DataValue) {
+	// update manual operation
+	valveState, err := homeassistant.ParseSwitchState(homeassistant.StateInputBooleanPrefix+string(floorheating.FLOOR_HEATING_MANUAL_OPERATION_SWITCH), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.floorHeatingManualOperation = *valveState
+		b.lo.Info("FloorHeating", "manual operation state", *valveState)
+	}
 	// update floor heating valve states
 	for _, refId := range floorheating.ValveRefIds {
 		valveState, err := homeassistant.ParseSwitchState(homeassistant.StateSwitchPrefix+string(refId), state)
@@ -63,5 +71,9 @@ func (b *brain) FloorHeating(state data.DataValue) {
 
 // update floorheating valve states
 func (b *brain) UpdateFloorheatingValves(valveStates map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState) error {
+	if b.floorHeatingManualOperation.State == floorheating.FloorHeatingManualOperationOn {
+		b.lo.Info("Floor heating valves. Manual operation is activated! Will not auto turn on/off floor heating valves!")
+		return nil
+	}
 	return b.flootHeating.CheckFloorHeatingValves(b.floorHeatingValves)
 }
