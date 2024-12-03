@@ -266,6 +266,8 @@ func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 	case THERMOSTAT_DUSSIRUUM:
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_DUSSIRUUM)
 		section = THERMOSTAT_DUSSIRUUM_TARGET
+	case THERMOSTAT_ELUTUBA_WALL:
+		fallthrough
 	case THERMOSTAT_ELUTUBA_SOFA: // THERMOSTAT_ELUTUBA_WALL
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_1)
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_2)
