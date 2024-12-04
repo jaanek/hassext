@@ -72,21 +72,21 @@ func (v floorheatingValve) Name() string {
 func FloorheatingValveByName(stateId FloorHeatingValveStateId) (FloorheatingValve, error) {
 	switch stateId {
 	case FLOOR_HEATING_VALVE_ESIK:
-		return floorheatingValve{stateId, "", "esik"}, nil
+		return floorheatingValve{stateId, "", "floor1_esik"}, nil
 	case FLOOR_HEATING_VALVE_ELUTUBA_1:
-		return floorheatingValve{stateId, "2", "elutuba_1"}, nil
+		return floorheatingValve{stateId, "2", "floor1_elutuba1"}, nil
 	case FLOOR_HEATING_VALVE_ELUTUBA_2:
-		return floorheatingValve{stateId, "3", "elutuba_2"}, nil
+		return floorheatingValve{stateId, "3", "floor1_elutuba2"}, nil
 	case FLOOR_HEATING_VALVE_KITCHEN:
-		return floorheatingValve{stateId, "4", "kitchen"}, nil
+		return floorheatingValve{stateId, "4", "floor1_kook"}, nil
 	case FLOOR_HEATING_VALVE_DUSSIRUUM:
-		return floorheatingValve{stateId, "5", "dussiruum"}, nil
+		return floorheatingValve{stateId, "5", "floor1_dussiruum"}, nil
 	case FLOOR_HEATING_VALVE_SAUNA_EESRUUM:
-		return floorheatingValve{stateId, "6", "sauna_eesruum"}, nil
+		return floorheatingValve{stateId, "6", "floor1_sauna_eesruum"}, nil
 	case FLOOR_HEATING_VALVE_SUUR_KORIDOR2:
-		return floorheatingValve{stateId, "7", "koridor2"}, nil
+		return floorheatingValve{stateId, "7", "floor1_suur_koridor2"}, nil
 	case FLOOR_HEATING_VALVE_SUUR_KORIDOR1:
-		return floorheatingValve{stateId, "8", "koridor1"}, nil
+		return floorheatingValve{stateId, "8", "floor1_suur_koridor1"}, nil
 	}
 	return nil, fmt.Errorf("No floorheating valve found with stateId: %s", stateId)
 }
@@ -100,6 +100,12 @@ func (v FloorHeatingValveStatus) String() string {
 		return "ON"
 	}
 	return ""
+}
+func (v FloorHeatingValveStatus) State() bool {
+	if v == FloorHeatingValveStatusOn {
+		return true
+	}
+	return false
 }
 
 const (
@@ -190,6 +196,7 @@ func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValve
 	if err := db.Select(&thermostats, "select * from thermostat"); err != nil {
 		return err
 	}
+	var dbUpdates = []DBUpdateValve{}
 	var turnOn = FloorHeatingValveStatusOn
 	var turnOff = FloorHeatingValveStatusOff
 	for _, ts := range thermostats {
@@ -204,13 +211,25 @@ func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValve
 			turnAction = &turnOn
 		}
 		if turnAction != nil && len(resolvedValves.list) > 0 {
-			t.turnFloorHeatingValves(valveStates, resolvedValves, *turnAction)
+			t.turnFloorHeatingValves(valveStates, resolvedValves, *turnAction, &dbUpdates)
+		}
+	}
+
+	// save valve updates into the database
+	var now = time.Now()
+	for _, item := range dbUpdates {
+		var valve = item.valve
+		var status = item.value
+		// save it to db
+		err := FloorHeatingValveUpsert(db, valve.Name(), status.State(), now)
+		if err != nil {
+			t.log.Error("Error while updating valve status in db!", "valve name", valve.Name(), "error", err)
 		}
 	}
 	return nil
 }
 
-func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveStateId]*homeassistant.SwitchState, resolvedValves ResolvedValves, value FloorHeatingValveStatus) {
+func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveStateId]*homeassistant.SwitchState, resolvedValves ResolvedValves, value FloorHeatingValveStatus, dbUpdates *[]DBUpdateValve) {
 	// check if we already have turned off, if so then do nothing
 	var notInSync = []FloorheatingValve{}
 	var inSyncStates = []string{}
@@ -243,8 +262,15 @@ func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveS
 		err := t.MqPublishData(context.Background(), valve, value)
 		if err != nil {
 			t.log.Error(t.prefix+"Valve cannot be updated with new state!", "valve stateId", valve.StateId(), "error", err)
+			continue
 		}
+		*dbUpdates = append(*dbUpdates, DBUpdateValve{valve, value})
 	}
+}
+
+type DBUpdateValve struct {
+	valve FloorheatingValve
+	value FloorHeatingValveStatus
 }
 
 type ResolvedValves struct {
@@ -307,7 +333,7 @@ func ThermostatTemperatureUpsert(db *sqldb.DB, thermostatName ThermostatName, cu
 	return
 }
 
-func FloorHeatingValveUpsert(db *sqldb.DB, valveName FloorHeatingValveStateId, stateUP bool, lastStateChange time.Time) (err error) {
+func FloorHeatingValveUpsert(db *sqldb.DB, valveName string, stateUP bool, lastStateChange time.Time) (err error) {
 	var stateB int = 0
 	if stateUP {
 		stateB = 1
