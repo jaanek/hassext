@@ -15,18 +15,28 @@ import (
 	"github.com/zerodha/logf"
 )
 
-type FloorHeatingValveStateId string
+type FloorHeatingValveEntityId string
+type FloorHeatingValveName string
 
 const (
 	// floor heating valves
-	FLOOR_HEATING_VALVE_ESIK          FloorHeatingValveStateId = "tasmota"   // floor1_esik
-	FLOOR_HEATING_VALVE_ELUTUBA_1     FloorHeatingValveStateId = "tasmota_2" // floor1_elutuba1
-	FLOOR_HEATING_VALVE_ELUTUBA_2     FloorHeatingValveStateId = "tasmota_3" // floor1_elutuba2
-	FLOOR_HEATING_VALVE_KITCHEN       FloorHeatingValveStateId = "tasmota_4" // floor1_kook
-	FLOOR_HEATING_VALVE_DUSSIRUUM     FloorHeatingValveStateId = "tasmota_5" // floor1_dussiruum
-	FLOOR_HEATING_VALVE_SAUNA_EESRUUM FloorHeatingValveStateId = "tasmota_6" // floor1_sauna_eesruum
-	FLOOR_HEATING_VALVE_SUUR_KORIDOR2 FloorHeatingValveStateId = "tasmota_7" // floor1_suur_koridor2
-	FLOOR_HEATING_VALVE_SUUR_KORIDOR1 FloorHeatingValveStateId = "tasmota_8" // floor1_suur_koridor1
+	FLOOR_HEATING_VALVE_ESIK          FloorHeatingValveEntityId = "tasmota"   // floor1_esik
+	FLOOR_HEATING_VALVE_ELUTUBA_1     FloorHeatingValveEntityId = "tasmota_2" // floor1_elutuba1
+	FLOOR_HEATING_VALVE_ELUTUBA_2     FloorHeatingValveEntityId = "tasmota_3" // floor1_elutuba2
+	FLOOR_HEATING_VALVE_KITCHEN       FloorHeatingValveEntityId = "tasmota_4" // floor1_kook
+	FLOOR_HEATING_VALVE_DUSSIRUUM     FloorHeatingValveEntityId = "tasmota_5" // floor1_dussiruum
+	FLOOR_HEATING_VALVE_SAUNA_EESRUUM FloorHeatingValveEntityId = "tasmota_6" // floor1_sauna_eesruum
+	FLOOR_HEATING_VALVE_SUUR_KORIDOR2 FloorHeatingValveEntityId = "tasmota_7" // floor1_suur_koridor2
+	FLOOR_HEATING_VALVE_SUUR_KORIDOR1 FloorHeatingValveEntityId = "tasmota_8" // floor1_suur_koridor1
+	// floor heating valve names
+	FLOOR_HEATING_VALVE_NAME_ESIK          FloorHeatingValveName = "floor1_esik"
+	FLOOR_HEATING_VALVE_NAME_ELUTUBA_1     FloorHeatingValveName = "floor1_elutuba1"
+	FLOOR_HEATING_VALVE_NAME_ELUTUBA_2     FloorHeatingValveName = "floor1_elutuba2"
+	FLOOR_HEATING_VALVE_NAME_KITCHEN       FloorHeatingValveName = "floor1_kook"
+	FLOOR_HEATING_VALVE_NAME_DUSSIRUUM     FloorHeatingValveName = "floor1_dussiruum"
+	FLOOR_HEATING_VALVE_NAME_SAUNA_EESRUUM FloorHeatingValveName = "floor1_sauna_eesruum"
+	FLOOR_HEATING_VALVE_NAME_SUUR_KORIDOR2 FloorHeatingValveName = "floor1_suur_koridor2"
+	FLOOR_HEATING_VALVE_NAME_SUUR_KORIDOR1 FloorHeatingValveName = "floor1_suur_koridor1"
 )
 
 type FloorHeatingManualOperationState string
@@ -37,7 +47,7 @@ const (
 	FloorHeatingManualOperationOn                                          = "on"
 )
 
-var ValveRefIds = []FloorHeatingValveStateId{
+var ValveEntityIds = []FloorHeatingValveEntityId{
 	FLOOR_HEATING_VALVE_ELUTUBA_1,
 	FLOOR_HEATING_VALVE_ELUTUBA_2,
 	FLOOR_HEATING_VALVE_ESIK,
@@ -49,46 +59,46 @@ var ValveRefIds = []FloorHeatingValveStateId{
 }
 
 type FloorheatingValve interface {
-	StateId() FloorHeatingValveStateId
+	EntityId() FloorHeatingValveEntityId
 	PowerId() string
-	Name() string
+	Name() FloorHeatingValveName
 }
 type floorheatingValve struct {
-	stateId FloorHeatingValveStateId
+	stateId FloorHeatingValveEntityId
 	powerId string
-	name    string
+	name    FloorHeatingValveName
 }
 
-func (v floorheatingValve) StateId() FloorHeatingValveStateId {
+func (v floorheatingValve) EntityId() FloorHeatingValveEntityId {
 	return v.stateId
 }
 func (v floorheatingValve) PowerId() string {
 	return v.powerId
 }
-func (v floorheatingValve) Name() string {
+func (v floorheatingValve) Name() FloorHeatingValveName {
 	return v.name
 }
 
-func FloorheatingValveByName(stateId FloorHeatingValveStateId) (FloorheatingValve, error) {
-	switch stateId {
+func FloorheatingValveByName(entityId FloorHeatingValveEntityId) (FloorheatingValve, error) {
+	switch entityId {
 	case FLOOR_HEATING_VALVE_ESIK:
-		return floorheatingValve{stateId, "", "floor1_esik"}, nil
+		return floorheatingValve{entityId, "", FLOOR_HEATING_VALVE_NAME_ESIK}, nil
 	case FLOOR_HEATING_VALVE_ELUTUBA_1:
-		return floorheatingValve{stateId, "2", "floor1_elutuba1"}, nil
+		return floorheatingValve{entityId, "2", FLOOR_HEATING_VALVE_NAME_ELUTUBA_1}, nil
 	case FLOOR_HEATING_VALVE_ELUTUBA_2:
-		return floorheatingValve{stateId, "3", "floor1_elutuba2"}, nil
+		return floorheatingValve{entityId, "3", FLOOR_HEATING_VALVE_NAME_ELUTUBA_2}, nil
 	case FLOOR_HEATING_VALVE_KITCHEN:
-		return floorheatingValve{stateId, "4", "floor1_kook"}, nil
+		return floorheatingValve{entityId, "4", FLOOR_HEATING_VALVE_NAME_KITCHEN}, nil
 	case FLOOR_HEATING_VALVE_DUSSIRUUM:
-		return floorheatingValve{stateId, "5", "floor1_dussiruum"}, nil
+		return floorheatingValve{entityId, "5", FLOOR_HEATING_VALVE_NAME_DUSSIRUUM}, nil
 	case FLOOR_HEATING_VALVE_SAUNA_EESRUUM:
-		return floorheatingValve{stateId, "6", "floor1_sauna_eesruum"}, nil
+		return floorheatingValve{entityId, "6", FLOOR_HEATING_VALVE_NAME_SAUNA_EESRUUM}, nil
 	case FLOOR_HEATING_VALVE_SUUR_KORIDOR2:
-		return floorheatingValve{stateId, "7", "floor1_suur_koridor2"}, nil
+		return floorheatingValve{entityId, "7", FLOOR_HEATING_VALVE_NAME_SUUR_KORIDOR2}, nil
 	case FLOOR_HEATING_VALVE_SUUR_KORIDOR1:
-		return floorheatingValve{stateId, "8", "floor1_suur_koridor1"}, nil
+		return floorheatingValve{entityId, "8", FLOOR_HEATING_VALVE_NAME_SUUR_KORIDOR1}, nil
 	}
-	return nil, fmt.Errorf("No floorheating valve found with stateId: %s", stateId)
+	return nil, fmt.Errorf("No floorheating valve found with stateId: %s", entityId)
 }
 
 type FloorHeatingValveStatus int
@@ -114,7 +124,7 @@ const (
 )
 
 type FloorHeating interface {
-	CheckFloorHeatingValves(valveStates map[FloorHeatingValveStateId]*homeassistant.SwitchState) error
+	CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error
 }
 
 type floorHeating struct {
@@ -182,7 +192,7 @@ func New(log logf.Logger, sqliteDir string, mq mq.MqttClient) FloorHeating {
 // 	return nil
 // }
 
-func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValveStateId]*homeassistant.SwitchState) error {
+func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error {
 	t.log.Info(t.prefix + "Checking thermostats ...")
 	// open local sqlite db
 	db, err := t.openAppDatabase()
@@ -229,43 +239,56 @@ func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValve
 	return nil
 }
 
-func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveStateId]*homeassistant.SwitchState, resolvedValves ResolvedValves, value FloorHeatingValveStatus, dbUpdates *[]DBUpdateValve) {
+func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState, resolvedValves ResolvedValves, value FloorHeatingValveStatus, dbUpdates *[]DBUpdateValve) {
 	// check if we already have turned off, if so then do nothing
-	var notInSync = []FloorheatingValve{}
-	var inSyncStates = []string{}
-	var inSyncValves = []string{}
+	var notInSync = []DBUpdateValve{}
+	var inSyncValveStates = []string{}
+	var inSyncValveNames = []string{}
 	for _, valve := range resolvedValves.list {
-		var valveState = valveStates[valve.StateId()]
-		if valveState == nil {
-			t.log.Error(t.prefix+"Valve state not found from parsed states!", "valve stateId", valve.StateId())
-			notInSync = append(notInSync, valve)
+		var haState = valveStates[valve.EntityId()]
+		var newState = value
+		if haState == nil {
+			t.log.Error(t.prefix+"Valve state not found from parsed states!", "valve stateId", valve.EntityId())
+			notInSync = append(notInSync, DBUpdateValve{valve, newState})
 			continue
 		}
-		if strings.ToUpper(string(valveState.State)) != value.String() {
-			notInSync = append(notInSync, valve)
+		// there are certain valves that needs to be turned on always on some times, check them here
+		switch valve.Name() {
+		case FLOOR_HEATING_VALVE_NAME_ESIK:
+			{
+				// needs to be turned on on winter time becasue esik gets cold otherwise
+				newState = FloorHeatingValveStatusOn
+			}
+		}
+		// check if homeassistant valve state is not in sync with new calculation of valve state based on thermostat value
+		var stateNeedsUpdate = strings.ToUpper(string(haState.State)) != newState.String()
+		if stateNeedsUpdate {
+			notInSync = append(notInSync, DBUpdateValve{valve, newState})
 		} else {
-			inSyncStates = append(inSyncStates, value.String())
-			inSyncValves = append(inSyncValves, valve.Name())
+			inSyncValveStates = append(inSyncValveStates, newState.String())
+			inSyncValveNames = append(inSyncValveNames, string(valve.Name()))
 		}
 	}
-	var inSyncStatesStr = strings.Join(inSyncStates, ", ")
-	var inSyncValvesStr = strings.Join(inSyncValves, ", ")
+	var inSyncValveStatesStr = strings.Join(inSyncValveStates, ", ")
+	var inSyncValveNamesStr = strings.Join(inSyncValveNames, ", ")
 	if len(notInSync) <= 0 {
 		// already in sync, do nothing
-		t.log.Info(t.prefix+"All valves are already in sync. Do nothing!", "section", resolvedValves.section, "states", inSyncStatesStr, "valves", inSyncValvesStr)
+		t.log.Info(t.prefix+"All valves are already in sync. Do nothing!", "section", resolvedValves.section, "states", inSyncValveStatesStr, "valves", inSyncValveNamesStr)
 		return
 	}
 
 	// turn on/off not synced valves
-	for _, valve := range notInSync {
+	for _, item := range notInSync {
+		var valve = item.valve
+		var value = item.value
 		t.log.Info(t.prefix+"Turning "+value.String()+" floor heating", "valve", valve.PowerId(), "section", resolvedValves.section)
 		err := t.MqPublishData(context.Background(), valve, value)
 		if err != nil {
-			t.log.Error(t.prefix+"Valve cannot be updated with new state!", "valve stateId", valve.StateId(), "error", err)
+			t.log.Error(t.prefix+"Valve cannot be updated with new state!", "valve stateId", valve.EntityId(), "error", err)
 			continue
 		}
-		*dbUpdates = append(*dbUpdates, DBUpdateValve{valve, value})
 	}
+	*dbUpdates = append(*dbUpdates, notInSync...)
 }
 
 type DBUpdateValve struct {
@@ -299,6 +322,7 @@ func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_2)
 		section = THERMOSTAT_ELUTUBA_WALL_TARGET // THERMOSTAT_ELUTUBA_SOFA_TARGET
 	case THERMOSTAT_ESIK:
+		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ESIK)
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_KITCHEN)
 		section = THERMOSTAT_ESIK_TARGET
 	case THERMOSTAT_SUUR_KORIDOR_WORKPLACE:
@@ -309,7 +333,7 @@ func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 	return ResolvedValves{valves, upGap, downGap, section}
 }
 
-func (t *floorHeating) appendValve(valves []FloorheatingValve, name FloorHeatingValveStateId) []FloorheatingValve {
+func (t *floorHeating) appendValve(valves []FloorheatingValve, name FloorHeatingValveEntityId) []FloorheatingValve {
 	var valve, err = FloorheatingValveByName(name)
 	if err != nil {
 		t.log.Error(t.prefix+"Floor heating valve with name: %s not found", name)
@@ -333,7 +357,7 @@ func ThermostatTemperatureUpsert(db *sqldb.DB, thermostatName ThermostatName, cu
 	return
 }
 
-func FloorHeatingValveUpsert(db *sqldb.DB, valveName string, stateUP bool, lastStateChange time.Time) (err error) {
+func FloorHeatingValveUpsert(db *sqldb.DB, valveName FloorHeatingValveName, stateUP bool, lastStateChange time.Time) (err error) {
 	var stateB int = 0
 	if stateUP {
 		stateB = 1

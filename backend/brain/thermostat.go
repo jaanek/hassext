@@ -7,7 +7,7 @@ import (
 )
 
 func (b *brain) Thermostats(state data.DataValue) {
-	for _, refId := range floorheating.ValveRefIds {
+	for _, refId := range floorheating.ValveEntityIds {
 		valveState, err := homeassistant.ParseSwitchState(homeassistant.StateSwitchPrefix+string(refId), state)
 		if err != nil {
 			b.errors <- err

@@ -54,7 +54,7 @@ type brain struct {
 	uponorDussiruum                      ClimateState
 	uponorSaunaEesruum                   ClimateState
 	floorHeatingManualOperation          homeassistant.SwitchState
-	floorHeatingValves                   map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState
+	floorHeatingValves                   map[floorheating.FloorHeatingValveEntityId]*homeassistant.SwitchState
 	floorHeatingSimpleThermostats        map[floorheating.ThermostatName]*homeassistant.ThermostatState
 	floorHeatingSimpleThermostatTargets  map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState
 }
@@ -68,7 +68,7 @@ func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, 
 		sqliteDir:                           dataDir,
 		flootHeating:                        floorHeating,
 		errors:                              make(chan error, 10),
-		floorHeatingValves:                  map[floorheating.FloorHeatingValveStateId]*homeassistant.SwitchState{},
+		floorHeatingValves:                  map[floorheating.FloorHeatingValveEntityId]*homeassistant.SwitchState{},
 		floorHeatingSimpleThermostats:       map[floorheating.ThermostatName]*homeassistant.ThermostatState{},
 		floorHeatingSimpleThermostatTargets: map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState{},
 	}
