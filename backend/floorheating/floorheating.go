@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -46,10 +47,11 @@ const (
 type FloorHeatingManualOperationState string
 
 const (
-	FLOOR_HEATING_VALVES_MANUAL_OPERATION_SWITCH FloorHeatingManualOperationState = "floorheating_valves_manual_operation"
-	FLOOR_HEATING_KLAPP_MANUAL_OPERATION_SWITCH  FloorHeatingManualOperationState = "floor_heating_manual_water_open_control"
-	SwitchOff                                                                     = "off"
-	SwitchOn                                                                      = "on"
+	FLOOR_HEATING_VALVES_MANUAL_OPERATION_SWITCH            FloorHeatingManualOperationState = "floorheating_valves_manual_operation"
+	FLOOR_HEATING_KLAPP_MANUAL_OPERATION_SWITCH             FloorHeatingManualOperationState = "floor_heating_manual_water_open_control"
+	FLOOR_HEATING_CURVE_TARGET_TEMP_MANUAL_OPERATION_SWITCH FloorHeatingManualOperationState = "floor_heating_curve_manual_target_temperature_operation"
+	SwitchOff                                                                                = "off"
+	SwitchOn                                                                                 = "on"
 )
 const (
 	FLOOR_HEATING_TARGET_TEMPERATURE        FloorHeatingKlapp = "floor_heating_target_temperature"
@@ -57,6 +59,7 @@ const (
 	FLOOR_HEATING_KLAPI_AVA                 FloorHeatingKlapp = "floor_heating_kontuur_klapp_ava"
 	FLOOR_HEATING_BUFFER_TOP_TEMPERATURE    FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_top"
 	FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_bottom"
+	ENTITY_EXTERNAL_TEMPERATURE             FloorHeatingKlapp = "external_temperature"
 )
 
 const (
@@ -142,6 +145,7 @@ const (
 type FloorHeating interface {
 	CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error
 	CheckFloorHeatingKontuurTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
+	UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
 }
 
 type floorHeating struct {
@@ -152,9 +156,10 @@ type floorHeating struct {
 	sqliteDir string
 	topic     string
 	mq        mq.MqttClient
+	ha        homeassistant.HomeAssistant
 }
 
-func New(log logf.Logger, sqliteDir string, mq mq.MqttClient) FloorHeating {
+func New(log logf.Logger, sqliteDir string, mq mq.MqttClient, ha homeassistant.HomeAssistant) FloorHeating {
 	return &floorHeating{
 		prefix:    "[floor-heating] ",
 		log:       log,
@@ -162,6 +167,7 @@ func New(log logf.Logger, sqliteDir string, mq mq.MqttClient) FloorHeating {
 		sqliteDir: sqliteDir,
 		topic:     "heatingvalves1",
 		mq:        mq,
+		ha:        ha,
 	}
 }
 
@@ -209,19 +215,96 @@ func New(log logf.Logger, sqliteDir string, mq mq.MqttClient) FloorHeating {
 // 	return nil
 // }
 
+func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error {
+	t.log.Info(t.prefix + "Checking floor heating kontuur temperature ...")
+	var targetTemp = klappStates[FLOOR_HEATING_TARGET_TEMPERATURE]
+	if targetTemp == nil {
+		return fmt.Errorf("No floor heating target temperature not found!")
+	}
+	var externalTemp = klappStates[ENTITY_EXTERNAL_TEMPERATURE]
+	if externalTemp == nil {
+		return fmt.Errorf("No floor heating external/välis temperature not found!")
+	}
+	t.log.Info(t.prefix + fmt.Sprintf("heating curve. Current target temperature: %v, external temperature: %v", targetTemp.CurrentTemperature, externalTemp.CurrentTemperature))
+
+	// open local sqlite db
+	db, err := t.openAppDatabase()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	// read in all the heating curve rows
+	var items = []model.HeatingCurveItem{}
+	if err := db.Select(&items, "select * from heating_curve"); err != nil {
+		return err
+	}
+	if len(items) <= 0 {
+		return fmt.Errorf("No floor heating curve items found in db!")
+	}
+	// Sort items by externalTemperature in ascending order
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ExternalTemperature < items[j].ExternalTemperature
+	})
+	// Print sorted items to verify
+	var currExtTemp = externalTemp.CurrentTemperature
+	var lowerItem *model.HeatingCurveItem
+	var higherItem *model.HeatingCurveItem
+	for _, item := range items {
+		fmt.Printf("Heating curve External Temperature: %d\n", item.ExternalTemperature)
+		if float64(item.ExternalTemperature) >= currExtTemp {
+			higherItem = &item
+			break
+		}
+		lowerItem = &item
+	}
+	// if one of them is not then get the first row taret temp
+	var newTargetTemperature int
+	if lowerItem == nil || higherItem == nil {
+		newTargetTemperature = items[0].TargetTemperature
+	} else {
+		var target = interpolate(*lowerItem, *higherItem, currExtTemp)
+		newTargetTemperature = int(math.Round(target))
+	}
+	// if old & new are same then no need to update
+	var oldTargetTemperature = int(targetTemp.CurrentTemperature)
+	if oldTargetTemperature == newTargetTemperature {
+		t.log.Info(t.prefix+"Skipping updating heating curve target temperature. New & old target temperatures are same!", "new targetTemperature", newTargetTemperature, "old target temperature", targetTemp.CurrentTemperature)
+		return nil
+	}
+	t.log.Info(t.prefix+"Heating curve updating floor heating target temperature", "new targetTemperature", newTargetTemperature, "old target temperature", targetTemp.CurrentTemperature)
+	err = t.ha.SetInputNumberValue(homeassistant.StateThermostatInputNumberPrefix+string(FLOOR_HEATING_TARGET_TEMPERATURE), int64(newTargetTemperature))
+	if err != nil {
+		return fmt.Errorf("Failed to update floor heating target temperature in ha! Error: %w", err)
+	}
+	return nil
+}
+
+func interpolate(lower, higher model.HeatingCurveItem, currentExt float64) float64 {
+	// Calculate the fraction of the range the current external temperature represents
+	var lowerExt = float64(lower.ExternalTemperature)
+	var higherExt = float64(higher.ExternalTemperature)
+	var fraction = (currentExt - lowerExt) / (higherExt - lowerExt)
+
+	// Use the fraction to interpolate between the two known boiler temperatures
+	var targetLowerTemp = float64(lower.TargetTemperature)
+	var targetHigherTemp = float64(higher.TargetTemperature)
+	return targetLowerTemp + fraction*(targetHigherTemp-targetLowerTemp)
+}
+
 func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error {
 	t.log.Info(t.prefix + "Checking floor heating kontuur temperature ...")
 	var targetTemp = klappStates[FLOOR_HEATING_TARGET_TEMPERATURE]
 	if targetTemp == nil {
-		return fmt.Errorf("No floor heating target temperature found!")
+		return fmt.Errorf("No floor heating target temperature not found!")
 	}
 	var pealeTemp = klappStates[FLOOR_HEATING_PEALE_TEMPERATURE]
 	if pealeTemp == nil {
-		return fmt.Errorf("No floor heating peale temperature found!")
+		return fmt.Errorf("No floor heating peale temperature not found!")
 	}
 	var klapiAvaState = klappStates[FLOOR_HEATING_KLAPI_AVA]
 	if klapiAvaState == nil {
-		return fmt.Errorf("No floor heating klapi ava status found!")
+		return fmt.Errorf("No floor heating klapi ava status not found!")
 	}
 	var klapiAvaValue = float32(klapiAvaState.CurrentTemperature / 100) // it's actually percent in it, like 30%
 	// var klapiAvaValueRounded = float32(math.Round(float64(klapiAvaValue*100))) / 100

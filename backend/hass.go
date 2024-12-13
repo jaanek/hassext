@@ -108,7 +108,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 	uponorClient := uponor.NewUponorClient(lo, &uponor.HttpClientParams{
 		Host: ko.String("uponor.host"),
 	})
-	flootHeating := floorheating.New(lo, dataDir, mq)
+	flootHeating := floorheating.New(lo, dataDir, mq, ha)
 	brain := brain.NewBrain(lo, ha, mq, uponorClient, dataDir, flootHeating)
 
 	return &HassExt{

@@ -20,45 +20,46 @@ type Brain interface {
 }
 
 type brain struct {
-	lo                                   logf.Logger
-	ha                                   homeassistant.HomeAssistant
-	mq                                   mq.MqttClient
-	uponorClient                         uponor.UponorClient
-	sqliteDir                            string
-	errors                               chan error
-	flootHeating                         floorheating.FloorHeating
-	nordpoolPrices                       nordpool.NordpoolPrices
-	dishwasherStart                      time.Time
-	heapPumpHeatingAllowedWinterMode     EntityState
-	heapPumpKeepWaterHeatingActive       EntityState // example: "on" / "off"
-	heapPumpKeepWaterHeaterBoost         EntityState // example: "on" / "off"
-	heapPumpTriggerHeatingActive         EntityState // example: "on" / "off"
-	heapPumpTriggerWaterHeaterActive     EntityState // example: "on" / "off"
-	heapPumpTriggerWaterHeaterBoost      EntityState // example: "on" / "off"
-	heapPumpTriggerHeatingSetTemp        EntityState
-	heapPumpHeatingIgnoreMaxPricePerHour EntityState // example: "on" / "off"
-	heatPumpHeating                      ClimateState
-	heatPumpWaterHeater                  ClimateState
-	heatPumpWaterHeaterStartState        EntityState // example: "03:00:00"
-	heatPumpWaterHeaterStopState         EntityState // example: "06:00:00"
-	heatPumpWaterHeaterStart             time.Time
-	heatPumpWaterHeaterStop              time.Time
-	heatPumpHeatingTempShift             int32
-	emodulHeatingAllowed                 bool
-	emodulControllerState                EntityState
-	emodulOperationMode                  EntityState
-	emodulOutsideTemp                    float64
-	emodulBoilerTemp                     float64
-	uponorElutuba                        ClimateState
-	uponorEsik                           ClimateState
-	uponorDussiruum                      ClimateState
-	uponorSaunaEesruum                   ClimateState
-	floorHeatingValvesManualOperation    homeassistant.SwitchState
-	floorHeatingKlappManualOperation     homeassistant.SwitchState
-	floorHeatingKlappStates              map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState
-	floorHeatingValves                   map[floorheating.FloorHeatingValveEntityId]*homeassistant.SwitchState
-	floorHeatingSimpleThermostats        map[floorheating.ThermostatName]*homeassistant.ThermostatState
-	floorHeatingSimpleThermostatTargets  map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState
+	lo                                         logf.Logger
+	ha                                         homeassistant.HomeAssistant
+	mq                                         mq.MqttClient
+	uponorClient                               uponor.UponorClient
+	sqliteDir                                  string
+	errors                                     chan error
+	flootHeating                               floorheating.FloorHeating
+	nordpoolPrices                             nordpool.NordpoolPrices
+	dishwasherStart                            time.Time
+	heapPumpHeatingAllowedWinterMode           EntityState
+	heapPumpKeepWaterHeatingActive             EntityState // example: "on" / "off"
+	heapPumpKeepWaterHeaterBoost               EntityState // example: "on" / "off"
+	heapPumpTriggerHeatingActive               EntityState // example: "on" / "off"
+	heapPumpTriggerWaterHeaterActive           EntityState // example: "on" / "off"
+	heapPumpTriggerWaterHeaterBoost            EntityState // example: "on" / "off"
+	heapPumpTriggerHeatingSetTemp              EntityState
+	heapPumpHeatingIgnoreMaxPricePerHour       EntityState // example: "on" / "off"
+	heatPumpHeating                            ClimateState
+	heatPumpWaterHeater                        ClimateState
+	heatPumpWaterHeaterStartState              EntityState // example: "03:00:00"
+	heatPumpWaterHeaterStopState               EntityState // example: "06:00:00"
+	heatPumpWaterHeaterStart                   time.Time
+	heatPumpWaterHeaterStop                    time.Time
+	heatPumpHeatingTempShift                   int32
+	emodulHeatingAllowed                       bool
+	emodulControllerState                      EntityState
+	emodulOperationMode                        EntityState
+	emodulOutsideTemp                          float64
+	emodulBoilerTemp                           float64
+	uponorElutuba                              ClimateState
+	uponorEsik                                 ClimateState
+	uponorDussiruum                            ClimateState
+	uponorSaunaEesruum                         ClimateState
+	floorHeatingValvesManualOperation          homeassistant.SwitchState
+	floorHeatingKlappManualOperation           homeassistant.SwitchState
+	floorHeatingCurveTargetTempManualOperation homeassistant.SwitchState
+	floorHeatingKlappStates                    map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState
+	floorHeatingValves                         map[floorheating.FloorHeatingValveEntityId]*homeassistant.SwitchState
+	floorHeatingSimpleThermostats              map[floorheating.ThermostatName]*homeassistant.ThermostatState
+	floorHeatingSimpleThermostatTargets        map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState
 }
 
 func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, uponorClient uponor.UponorClient, dataDir string, floorHeating floorheating.FloorHeating) Brain {
@@ -186,7 +187,11 @@ func (b *brain) updateData() error {
 	if err != nil {
 		b.errors <- err
 	}
-	err = b.UpdateFloorheatingKontuurTemp(b.floorHeatingKlappStates)
+	err = b.UpdateFloorheatingKontuurTargetTemp(b.floorHeatingKlappStates)
+	if err != nil {
+		b.errors <- err
+	}
+	err = b.UpdateFloorheatingKontuurAva(b.floorHeatingKlappStates)
 	if err != nil {
 		b.errors <- err
 	}

@@ -23,6 +23,13 @@ func (b *brain) FloorHeating(state data.DataValue) {
 		b.floorHeatingKlappManualOperation = *floorHeatingKlappManualOp
 		b.lo.Info("FloorHeating", "klapp manual operation state", *floorHeatingKlappManualOp)
 	}
+	floorHeatingCurveTargetTempManualOp, err := homeassistant.ParseSwitchState(homeassistant.StateInputBooleanPrefix+string(floorheating.FLOOR_HEATING_CURVE_TARGET_TEMP_MANUAL_OPERATION_SWITCH), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.floorHeatingCurveTargetTempManualOperation = *floorHeatingCurveTargetTempManualOp
+		b.lo.Info("FloorHeating", "curve target temperature manual operation state", *floorHeatingCurveTargetTempManualOp)
+	}
 	floorHeatingTargetTempState, err := homeassistant.ParseThermostatState(homeassistant.StateThermostatInputNumberPrefix+string(floorheating.FLOOR_HEATING_TARGET_TEMPERATURE), state)
 	if err != nil {
 		b.errors <- err
@@ -57,6 +64,13 @@ func (b *brain) FloorHeating(state data.DataValue) {
 	} else {
 		b.floorHeatingKlappStates[floorheating.FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE] = floorHeatingBufferBottomTemp
 		b.lo.Info("FloorHeating", "buffer bottom temperature", *floorHeatingBufferBottomTemp)
+	}
+	floorHeatingExternalTemp, err := homeassistant.ParseThermostatState(homeassistant.StateThermostatPrefix+string(floorheating.ENTITY_EXTERNAL_TEMPERATURE), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.floorHeatingKlappStates[floorheating.ENTITY_EXTERNAL_TEMPERATURE] = floorHeatingExternalTemp
+		b.lo.Info("FloorHeating", "external temperature", *floorHeatingExternalTemp)
 	}
 	// update floor heating valve states
 	for _, refId := range floorheating.ValveEntityIds {
@@ -119,11 +133,20 @@ func (b *brain) UpdateFloorheatingValves(valveStates map[floorheating.FloorHeati
 	return b.flootHeating.CheckFloorHeatingValves(b.floorHeatingValves)
 }
 
-// Check the floor heating target temp if it's in range to peale temp
-func (b *brain) UpdateFloorheatingKontuurTemp(klappStates map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState) error {
+// Update the floor heating klapi ava %
+func (b *brain) UpdateFloorheatingKontuurAva(klappStates map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState) error {
 	if b.floorHeatingKlappManualOperation.State == floorheating.SwitchOn {
 		b.lo.Info("Floor heating kontuur open klapp/controller. Manual operation is activated! Will not automatically update klapp ava %!")
 		return nil
 	}
 	return b.flootHeating.CheckFloorHeatingKontuurTemp(b.floorHeatingKlappStates)
+}
+
+// Check the floor heating target temp
+func (b *brain) UpdateFloorheatingKontuurTargetTemp(klappStates map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState) error {
+	if b.floorHeatingCurveTargetTempManualOperation.State == floorheating.SwitchOn {
+		b.lo.Info("Floor heating kontuur target temperature. Manual operation is activated! Will not automatically update target temperature!")
+		return nil
+	}
+	return b.flootHeating.UpdateFloorHeatingTargetTemp(klappStates)
 }
