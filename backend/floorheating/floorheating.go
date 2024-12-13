@@ -344,35 +344,40 @@ func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeating
 	// TODO! now check if peale temp has changed after last update, if it has not ...
 
 	// check in which way we need to adjust
-	var klappIncMinimal float32 = 0.05 // inc 5%
-	var diffGapAllowed float64 = 1     // degrees gap allowed
+	var klappIncMinimal float32 = 0.05    // inc 5%
+	var diffGapUpperAllowed float64 = 1   // degrees gap allowed on upper
+	var diffGapLowerAllowed float64 = 0.5 // degrees gap allowed on lower
 	var tempsDiff = targetTemp.CurrentTemperature - pealeTemp.CurrentTemperature
 	var tempsDiffAbs = math.Abs(tempsDiff)
-	if tempsDiffAbs < 4 {
-		klappIncMinimal = 0.03
-	} else if tempsDiffAbs < 3 {
+	if tempsDiffAbs < 3 {
 		klappIncMinimal = 0.02
+	} else if tempsDiffAbs < 4 {
+		klappIncMinimal = 0.03
 	}
 	// else if tempsDiffAbs < 2 {
 	// 	klappIncMinimal = 0.01
 	// }
+	// else if tempsDiff > 0 && tempsDiff > diffGapLowerAllowed {
+	// 	// peale temp is lower than target
+	// 	newPosition = klapiAvaValue + 0.01
+	// }
 	var newPosition float32 = 0.0
-	if tempsDiff > 0 && tempsDiff > diffGapAllowed {
+	if tempsDiff > 0 && tempsDiff > diffGapLowerAllowed {
 		// peale temp is lower than target
 		newPosition = klapiAvaValue + klappIncMinimal
-	} else if tempsDiff < 0 && math.Abs(tempsDiff) > diffGapAllowed {
+	} else if tempsDiff < 0 && tempsDiffAbs > diffGapUpperAllowed {
 		// peale temp is higher than target
 		newPosition = klapiAvaValue - klappIncMinimal
 	} else {
 		// it's within the gap, do nothing
-		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because peale temp is within the allowed gap. Target temp: %v, peale temp: %v. Allowed gap: %v degrees.", targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapAllowed))
+		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because peale temp is within the allowed gap. Target temp: %v, peale temp: %v. Allowed gap: %v, lower gap: %v degrees.", targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapUpperAllowed, diffGapLowerAllowed))
 		return nil
 	}
 	if newPosition < 0 || newPosition > 1 {
-		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because the adjusted new position: %v is lower than 0 or greater than 1, which is not allowed. Target temp: %v, peale temp: %v. Allowed gap: %v degrees.", newPosition, targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapAllowed))
+		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because the adjusted new position: %v is lower than 0 or greater than 1, which is not allowed. Target temp: %v, peale temp: %v. Allowed gap: %v, lower gap: %v degrees.", newPosition, targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapUpperAllowed, diffGapLowerAllowed))
 		return nil
 	}
-	t.log.Info(t.prefix + fmt.Sprintf("Updating floor heating temperature based on target temp. New position: %v, increment step: %v, Target temp: %v, peale temp: %v. Allowed gap: %v degrees.", newPosition, klappIncMinimal, targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapAllowed))
+	t.log.Info(t.prefix + fmt.Sprintf("Updating floor heating temperature based on target temp. New position: %v, increment step: %v, Target temp: %v, peale temp: %v. Allowed gap: %v, lower gap: %v degrees.", newPosition, klappIncMinimal, targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapUpperAllowed, diffGapLowerAllowed))
 
 	// adjust the klapi ava
 	err = esphome.SetCoverPosition(esphome.FloorHeatingCoverDevice, newPosition)
