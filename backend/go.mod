@@ -18,6 +18,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/knadh/koanf v1.4.5
 	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mycontroller-org/esphome_api v1.3.0
 	github.com/ohler55/ojg v1.17.2
 	github.com/pkg/errors v0.9.1
 	github.com/simonvetter/modbus v1.6.0
@@ -26,11 +27,13 @@ require (
 	github.com/zerodha/logf v0.5.5
 	golang.org/x/crypto v0.29.0
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/flynn/noise v1.0.1-0.20220214164934-d803f5c4b0f4 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/goburrow/serial v0.1.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
@@ -42,7 +45,7 @@ require (
 	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/miekg/dns v1.1.46 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pelletier/go-toml v1.7.0 // indirect
 	golang.org/x/mod v0.22.0 // indirect

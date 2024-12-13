@@ -180,24 +180,24 @@ func (m *emodul) Start(ctx context.Context) {
 					// at the end save the last values for the valve to compare against next time
 					v, err := ParseValve(1012, moduleData)
 					if err != nil {
-						m.lo.Error("Main valve parse", "error", err)
-						continue
+						m.lo.Error("Katel valve/klapp ava parse", "error", err)
+					} else {
+						if isValueChanged(m.mainValve.currentTemp, v.currentTemp) {
+							sensorPublish(m.lo, ctx, mvTempSensor, float32(v.currentTemp)/10)
+						}
+						if isValueChanged(m.mainValve.setTemp, v.setTemp) {
+							sensorPublish(m.lo, ctx, mvSetTempSensor, float32(v.setTemp))
+						}
+						if isValueChanged(m.mainValve.returnTemp, v.returnTemp) {
+							sensorPublish(m.lo, ctx, mvReturnTempSensor, float32(v.returnTemp))
+						}
+						m.mainValve = v
 					}
-					if isValueChanged(m.mainValve.currentTemp, v.currentTemp) {
-						sensorPublish(m.lo, ctx, mvTempSensor, float32(v.currentTemp)/10)
-					}
-					if isValueChanged(m.mainValve.setTemp, v.setTemp) {
-						sensorPublish(m.lo, ctx, mvSetTempSensor, float32(v.setTemp))
-					}
-					if isValueChanged(m.mainValve.returnTemp, v.returnTemp) {
-						sensorPublish(m.lo, ctx, mvReturnTempSensor, float32(v.returnTemp))
-					}
-					m.mainValve = v
 
 					// parse buffer tank temperatures
 					topBufferTemp, err := ParseTempSensor(1018, moduleData, menuData)
 					if err != nil {
-						m.lo.Error("top buffer parsing", "error", err)
+						m.lo.Error("Katel top buffer parsing", "error", err)
 					} else {
 						if isValueChanged(m.topBufferTemp.currentTemp, topBufferTemp.currentTemp) {
 							sensorPublish(m.lo, ctx, sensorBufferTopTemp, float32(topBufferTemp.currentTemp)/10)
@@ -209,7 +209,7 @@ func (m *emodul) Start(ctx context.Context) {
 					}
 					bottomBufferTemp, err := ParseTempSensor(1019, moduleData, menuData)
 					if err != nil {
-						m.lo.Error("bottom buffer parsing", "error", err)
+						m.lo.Error("Katel bottom buffer parsing", "error", err)
 					} else {
 						if isValueChanged(m.bottomBufferTemp.currentTemp, bottomBufferTemp.currentTemp) {
 							sensorPublish(m.lo, ctx, sensorBufferBottomTemp, float32(bottomBufferTemp.currentTemp)/10)

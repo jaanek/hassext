@@ -3,10 +3,12 @@ package floorheating
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/jaanek/hassext/esphome"
 	"github.com/jaanek/hassext/homeassistant"
 	"github.com/jaanek/hassext/model"
 	"github.com/jaanek/hassext/mq"
@@ -17,6 +19,8 @@ import (
 
 type FloorHeatingValveEntityId string
 type FloorHeatingValveName string
+type FloorHeatingKlapp string
+type FloorHeatingControllerName string
 
 const (
 	// floor heating valves
@@ -42,9 +46,21 @@ const (
 type FloorHeatingManualOperationState string
 
 const (
-	FLOOR_HEATING_MANUAL_OPERATION_SWITCH FloorHeatingManualOperationState = "floorheating_valves_manual_operation"
-	FloorHeatingManualOperationOff                                         = "off"
-	FloorHeatingManualOperationOn                                          = "on"
+	FLOOR_HEATING_VALVES_MANUAL_OPERATION_SWITCH FloorHeatingManualOperationState = "floorheating_valves_manual_operation"
+	FLOOR_HEATING_KLAPP_MANUAL_OPERATION_SWITCH  FloorHeatingManualOperationState = "floor_heating_manual_water_open_control"
+	SwitchOff                                                                     = "off"
+	SwitchOn                                                                      = "on"
+)
+const (
+	FLOOR_HEATING_TARGET_TEMPERATURE        FloorHeatingKlapp = "floor_heating_target_temperature"
+	FLOOR_HEATING_PEALE_TEMPERATURE         FloorHeatingKlapp = "garaaz_pipes_temperatures_p_randak_te_peale"
+	FLOOR_HEATING_KLAPI_AVA                 FloorHeatingKlapp = "floor_heating_kontuur_klapp_ava"
+	FLOOR_HEATING_BUFFER_TOP_TEMPERATURE    FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_top"
+	FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_bottom"
+)
+
+const (
+	FLOOR_HEATING_CONTROLLER_NAME_KLAPP1 FloorHeatingControllerName = "floor_heating_klapp1"
 )
 
 var ValveEntityIds = []FloorHeatingValveEntityId{
@@ -125,6 +141,7 @@ const (
 
 type FloorHeating interface {
 	CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error
+	CheckFloorHeatingKontuurTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
 }
 
 type floorHeating struct {
@@ -192,6 +209,102 @@ func New(log logf.Logger, sqliteDir string, mq mq.MqttClient) FloorHeating {
 // 	return nil
 // }
 
+func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error {
+	t.log.Info(t.prefix + "Checking floor heating kontuur temperature ...")
+	var targetTemp = klappStates[FLOOR_HEATING_TARGET_TEMPERATURE]
+	if targetTemp == nil {
+		return fmt.Errorf("No floor heating target temperature found!")
+	}
+	var pealeTemp = klappStates[FLOOR_HEATING_PEALE_TEMPERATURE]
+	if pealeTemp == nil {
+		return fmt.Errorf("No floor heating peale temperature found!")
+	}
+	var klapiAvaState = klappStates[FLOOR_HEATING_KLAPI_AVA]
+	if klapiAvaState == nil {
+		return fmt.Errorf("No floor heating klapi ava status found!")
+	}
+	var klapiAvaValue = float32(klapiAvaState.CurrentTemperature / 100) // it's actually percent in it, like 30%
+	// var klapiAvaValueRounded = float32(math.Round(float64(klapiAvaValue*100))) / 100
+	if klapiAvaValue < 0 || klapiAvaValue > 1 {
+		return fmt.Errorf("Invalid value for 'klapi ava' from state! Cannot be < 0 or > 1", klapiAvaValue, klapiAvaState)
+	}
+	var bufferTopTemp = klappStates[FLOOR_HEATING_BUFFER_TOP_TEMPERATURE]
+	var bufferBottomTemp = klappStates[FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE]
+	t.log.Info(t.prefix+"küte peale temperature check.", "target tempearture", targetTemp, "peale tempearature", pealeTemp, "klapi ava", klapiAvaState, "buffer top temperature", bufferTopTemp, "buffer bottom temperature", bufferBottomTemp)
+
+	// open local sqlite db
+	db, err := t.openAppDatabase()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	// read in the controller we want to work on
+	var cname = FLOOR_HEATING_CONTROLLER_NAME_KLAPP1
+	var controllers = []model.FloorHeatingController{}
+	if err := db.Select(&controllers, "select * from floor_heating_controller where cname = ?", cname); err != nil {
+		return err
+	}
+	var klappLastUpdate *time.Time
+	if len(controllers) > 0 {
+		klappLastUpdate = controllers[0].LastUpdate
+	}
+	var minIntervalToCheck = 60 * time.Second
+	var doCheck bool
+	if klappLastUpdate == nil || time.Since(*klappLastUpdate) >= minIntervalToCheck {
+		doCheck = true
+	}
+	if !doCheck {
+		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because we check after each %v but we have not passed that interval yet", minIntervalToCheck))
+		return nil
+	}
+	// TODO! now check if peale temp has changed after last update, if it has not ...
+
+	// check in which way we need to adjust
+	var klappIncMinimal float32 = 0.05 // inc 5%
+	var diffGapAllowed float64 = 1     // degrees gap allowed
+	var tempsDiff = targetTemp.CurrentTemperature - pealeTemp.CurrentTemperature
+	var tempsDiffAbs = math.Abs(tempsDiff)
+	if tempsDiffAbs < 4 {
+		klappIncMinimal = 0.03
+	} else if tempsDiffAbs < 3 {
+		klappIncMinimal = 0.02
+	}
+	// else if tempsDiffAbs < 2 {
+	// 	klappIncMinimal = 0.01
+	// }
+	var newPosition float32 = 0.0
+	if tempsDiff > 0 && tempsDiff > diffGapAllowed {
+		// peale temp is lower than target
+		newPosition = klapiAvaValue + klappIncMinimal
+	} else if tempsDiff < 0 && math.Abs(tempsDiff) > diffGapAllowed {
+		// peale temp is higher than target
+		newPosition = klapiAvaValue - klappIncMinimal
+	} else {
+		// it's within the gap, do nothing
+		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because peale temp is within the allowed gap. Target temp: %v, peale temp: %v. Allowed gap: %v degrees.", targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapAllowed))
+		return nil
+	}
+	if newPosition < 0 || newPosition > 1 {
+		t.log.Info(t.prefix + fmt.Sprintf("Skipping to update floor heating temperature based on target temp because the adjusted new position: %v is lower than 0 or greater than 1, which is not allowed. Target temp: %v, peale temp: %v. Allowed gap: %v degrees.", newPosition, targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapAllowed))
+		return nil
+	}
+	t.log.Info(t.prefix + fmt.Sprintf("Updating floor heating temperature based on target temp. New position: %v, increment step: %v, Target temp: %v, peale temp: %v. Allowed gap: %v degrees.", newPosition, klappIncMinimal, targetTemp.CurrentTemperature, pealeTemp.CurrentTemperature, diffGapAllowed))
+
+	// adjust the klapi ava
+	err = esphome.SetCoverPosition(esphome.FloorHeatingCoverDevice, newPosition)
+	if err != nil {
+		return err
+	}
+	// update last update date in db
+	var now = time.Now()
+	err = FloorHeatingControllerLastUpdateUpsert(db, cname, now)
+	if err != nil {
+		t.log.Error("Error while updating controller last update time in db!", "controller name", cname, "error", err)
+	}
+	return nil
+}
+
 func (t *floorHeating) CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error {
 	t.log.Info(t.prefix + "Checking thermostats ...")
 	// open local sqlite db
@@ -256,7 +369,7 @@ func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveE
 		switch valve.Name() {
 		case FLOOR_HEATING_VALVE_NAME_ESIK:
 			{
-				// needs to be turned on on winter time becasue esik gets cold otherwise
+				// needs to be turned on on winter time because esik gets cold otherwise
 				newState = FloorHeatingValveStatusOn
 			}
 		}
@@ -363,6 +476,11 @@ func FloorHeatingValveUpsert(db *sqldb.DB, valveName FloorHeatingValveName, stat
 		stateB = 1
 	}
 	_, err = db.Exec("INSERT INTO floor_heating_valve (vname, vstate, last_state_change) VALUES (?, ?, ?) ON CONFLICT(vname) DO UPDATE SET vstate=excluded.vstate, last_state_change=excluded.last_state_change", valveName, stateB, lastStateChange)
+	return
+}
+
+func FloorHeatingControllerLastUpdateUpsert(db *sqldb.DB, name FloorHeatingControllerName, lastStateChange time.Time) (err error) {
+	_, err = db.Exec("INSERT INTO floor_heating_controller (cname, last_state_change) VALUES (?, ?) ON CONFLICT(cname) DO UPDATE SET last_state_change=excluded.last_state_change", name, lastStateChange)
 	return
 }
 

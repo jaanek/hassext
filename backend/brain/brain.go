@@ -53,7 +53,9 @@ type brain struct {
 	uponorEsik                           ClimateState
 	uponorDussiruum                      ClimateState
 	uponorSaunaEesruum                   ClimateState
-	floorHeatingManualOperation          homeassistant.SwitchState
+	floorHeatingValvesManualOperation    homeassistant.SwitchState
+	floorHeatingKlappManualOperation     homeassistant.SwitchState
+	floorHeatingKlappStates              map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState
 	floorHeatingValves                   map[floorheating.FloorHeatingValveEntityId]*homeassistant.SwitchState
 	floorHeatingSimpleThermostats        map[floorheating.ThermostatName]*homeassistant.ThermostatState
 	floorHeatingSimpleThermostatTargets  map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState
@@ -68,6 +70,7 @@ func NewBrain(lo logf.Logger, ha homeassistant.HomeAssistant, mq mq.MqttClient, 
 		sqliteDir:                           dataDir,
 		flootHeating:                        floorHeating,
 		errors:                              make(chan error, 10),
+		floorHeatingKlappStates:             map[floorheating.FloorHeatingKlapp]*homeassistant.ThermostatState{},
 		floorHeatingValves:                  map[floorheating.FloorHeatingValveEntityId]*homeassistant.SwitchState{},
 		floorHeatingSimpleThermostats:       map[floorheating.ThermostatName]*homeassistant.ThermostatState{},
 		floorHeatingSimpleThermostatTargets: map[floorheating.ThermostatTargetName]*homeassistant.ThermostatState{},
@@ -180,6 +183,10 @@ func (b *brain) updateData() error {
 
 	// floorheating
 	err = b.UpdateFloorheatingValves(b.floorHeatingValves)
+	if err != nil {
+		b.errors <- err
+	}
+	err = b.UpdateFloorheatingKontuurTemp(b.floorHeatingKlappStates)
 	if err != nil {
 		b.errors <- err
 	}
