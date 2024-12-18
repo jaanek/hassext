@@ -329,8 +329,10 @@ func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeating
 		return err
 	}
 	var klappLastUpdate *time.Time
+	var controller *model.FloorHeatingController
 	if len(controllers) > 0 {
-		klappLastUpdate = controllers[0].LastUpdate
+		controller = &controllers[0]
+		klappLastUpdate = controller.LastUpdate
 	}
 	var minIntervalToCheck = 60 * time.Second
 	var doCheck bool
@@ -389,6 +391,13 @@ func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeating
 	err = FloorHeatingControllerLastUpdateUpsert(db, cname, now)
 	if err != nil {
 		t.log.Error("Error while updating controller last update time in db!", "controller name", cname, "error", err)
+	}
+	if controller != nil {
+		var nowUnixDays = UnixSecondsToDays(uint32(time.Now().Unix()))
+		err = FloorHeatingControllerIncDayStatsUpsert(db, uint64(controller.Id), nowUnixDays)
+		if err != nil {
+			t.log.Error("Error while updating controller day stats in db!", "controller name", cname, "error", err)
+		}
 	}
 	return nil
 }
@@ -501,7 +510,28 @@ type ResolvedValves struct {
 	list    []FloorheatingValve
 	upGap   float32
 	downGap float32
+	name    ThermostatName
 	section ThermostatTargetName
+}
+
+func (t *floorHeating) validateNoDuplicates(resolvedValves ResolvedValves, dbUpdates []DBUpdateValve) {
+	// check if dbUpdates already have these valves then skip adding them because some other thermostat already added them
+	var list = []FloorheatingValve{}
+	for _, valve := range resolvedValves.list {
+		var found bool
+		for _, dbUpd := range dbUpdates {
+			if dbUpd.valve.EntityId() == valve.EntityId() {
+				found = true
+				break
+			}
+		}
+		// not found, add to the result list
+		if !found {
+			list = append(list, valve)
+		} else {
+			t.log.Info(t.prefix + fmt.Sprintf("Thermostat: %v, section: %v, valve: %v:%v is already in the update list. Will not add to the update list!", resolvedValves.name, resolvedValves.section, valve.EntityId(), valve.Name()))
+		}
+	}
 }
 
 func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
@@ -517,11 +547,11 @@ func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_DUSSIRUUM)
 		section = THERMOSTAT_DUSSIRUUM_TARGET
 	// case THERMOSTAT_ELUTUBA_WALL:
-	// 	fallthrough
-	case THERMOSTAT_ELUTUBA_WALL: // THERMOSTAT_ELUTUBA_SOFA
+	// fallthrough
+	case THERMOSTAT_ELUTUBA_SOFA:
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_1)
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ELUTUBA_2)
-		section = THERMOSTAT_ELUTUBA_WALL_TARGET // THERMOSTAT_ELUTUBA_SOFA_TARGET
+		section = THERMOSTAT_ELUTUBA_SOFA_TARGET // THERMOSTAT_ELUTUBA_WALL_TARGET
 	case THERMOSTAT_ESIK:
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_ESIK)
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_KITCHEN)
@@ -531,7 +561,7 @@ func (t *floorHeating) resolveValves(name ThermostatName) ResolvedValves {
 		valves = t.appendValve(valves, FLOOR_HEATING_VALVE_SUUR_KORIDOR2)
 		section = THERMOSTAT_SUUR_KORIDOR_WORKPLACE_TARGET
 	}
-	return ResolvedValves{valves, upGap, downGap, section}
+	return ResolvedValves{valves, upGap, downGap, name, section}
 }
 
 func (t *floorHeating) appendValve(valves []FloorheatingValve, name FloorHeatingValveEntityId) []FloorheatingValve {
@@ -572,6 +602,12 @@ func FloorHeatingControllerLastUpdateUpsert(db *sqldb.DB, name FloorHeatingContr
 	return
 }
 
+func FloorHeatingControllerIncDayStatsUpsert(db *sqldb.DB, controllerId uint64, unixDays uint16) (err error) {
+	var onCount = 1
+	_, err = db.Exec("INSERT INTO floor_heating_controller_stats (controller_id, unix_days, on_count) VALUES (?, ?, ?) ON CONFLICT(controller_id, unix_days) DO UPDATE SET on_count=on_count+1", controllerId, unixDays, onCount)
+	return
+}
+
 // https://tasmota.github.io/docs/MQTT/#command-flow
 func (t *floorHeating) MqPublishData(ctx context.Context, valve FloorheatingValve, value FloorHeatingValveStatus) error {
 	var topic = "cmnd/" + t.topic + "/Power" + valve.PowerId()
@@ -581,4 +617,8 @@ func (t *floorHeating) MqPublishData(ctx context.Context, valve FloorheatingValv
 		return fmt.Errorf("floorheating valve publish error %w", err)
 	}
 	return nil
+}
+
+func UnixSecondsToDays(seconds uint32) uint16 {
+	return uint16(seconds / (60 * 60 * 24))
 }
