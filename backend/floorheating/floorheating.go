@@ -59,6 +59,7 @@ const (
 	FLOOR_HEATING_KLAPI_AVA                 FloorHeatingKlapp = "floor_heating_kontuur_klapp_ava"
 	FLOOR_HEATING_BUFFER_TOP_TEMPERATURE    FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_top"
 	FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_bottom"
+	HEATING_CURVE_OFFSET_TEMPERATURE        FloorHeatingKlapp = "floor_heating_heating_curve_offset"
 	ENTITY_EXTERNAL_TEMPERATURE             FloorHeatingKlapp = "external_temperature"
 )
 
@@ -144,7 +145,7 @@ const (
 
 type FloorHeating interface {
 	CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error
-	CheckFloorHeatingKontuurTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
+	SetFloorHeatingCoverPosition(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
 	UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
 }
 
@@ -225,6 +226,11 @@ func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeating
 	if externalTemp == nil {
 		return fmt.Errorf("No floor heating external/välis temperature not found!")
 	}
+	var heatingCurveOffsetTemp int = 0
+	var heatingCurveOffset = klappStates[HEATING_CURVE_OFFSET_TEMPERATURE]
+	if heatingCurveOffset != nil {
+		heatingCurveOffsetTemp = int(heatingCurveOffset.CurrentTemperature)
+	}
 	t.log.Info(t.prefix + fmt.Sprintf("heating curve. Current target temperature: %v, external temperature: %v", targetTemp.CurrentTemperature, externalTemp.CurrentTemperature))
 
 	// open local sqlite db
@@ -266,13 +272,16 @@ func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeating
 		var target = interpolate(*lowerItem, *higherItem, currExtTemp)
 		newTargetTemperature = int(math.Round(target))
 	}
+	// set the heating curve offset
+	newTargetTemperature += heatingCurveOffsetTemp
+
 	// if old & new are same then no need to update
 	var oldTargetTemperature = int(targetTemp.CurrentTemperature)
 	if oldTargetTemperature == newTargetTemperature {
-		t.log.Info(t.prefix+"Skipping updating heating curve target temperature. New & old target temperatures are same!", "new targetTemperature", newTargetTemperature, "old target temperature", targetTemp.CurrentTemperature)
+		t.log.Info(t.prefix+"Skipping updating heating curve target temperature. New & old target temperatures are same!", "new targetTemperature", newTargetTemperature, "old target temperature", targetTemp.CurrentTemperature, "heating curve offset", heatingCurveOffsetTemp)
 		return nil
 	}
-	t.log.Info(t.prefix+"Heating curve updating floor heating target temperature", "new targetTemperature", newTargetTemperature, "old target temperature", targetTemp.CurrentTemperature)
+	t.log.Info(t.prefix+"Heating curve updating floor heating target temperature", "new targetTemperature", newTargetTemperature, "old target temperature", targetTemp.CurrentTemperature, "heating curve offset", heatingCurveOffsetTemp)
 	err = t.ha.SetInputNumberValue(homeassistant.StateThermostatInputNumberPrefix+string(FLOOR_HEATING_TARGET_TEMPERATURE), int64(newTargetTemperature))
 	if err != nil {
 		return fmt.Errorf("Failed to update floor heating target temperature in ha! Error: %w", err)
@@ -292,7 +301,7 @@ func interpolate(lower, higher model.HeatingCurveItem, currentExt float64) float
 	return targetLowerTemp + fraction*(targetHigherTemp-targetLowerTemp)
 }
 
-func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error {
+func (t *floorHeating) SetFloorHeatingCoverPosition(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error {
 	t.log.Info(t.prefix + "Checking floor heating kontuur temperature ...")
 	var targetTemp = klappStates[FLOOR_HEATING_TARGET_TEMPERATURE]
 	if targetTemp == nil {
@@ -309,7 +318,7 @@ func (t *floorHeating) CheckFloorHeatingKontuurTemp(klappStates map[FloorHeating
 	var klapiAvaValue = float32(klapiAvaState.CurrentTemperature / 100) // it's actually percent in it, like 30%
 	// var klapiAvaValueRounded = float32(math.Round(float64(klapiAvaValue*100))) / 100
 	if klapiAvaValue < 0 || klapiAvaValue > 1 {
-		return fmt.Errorf("Invalid value for 'klapi ava' from state! Cannot be < 0 or > 1", klapiAvaValue, klapiAvaState)
+		return fmt.Errorf("Invalid value for 'klapi ava' from state! Cannot be < 0 or > 1. Klapi ava value: %v, state: %v", klapiAvaValue, klapiAvaState)
 	}
 	var bufferTopTemp = klappStates[FLOOR_HEATING_BUFFER_TOP_TEMPERATURE]
 	var bufferBottomTemp = klappStates[FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE]

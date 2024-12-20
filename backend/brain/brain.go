@@ -191,7 +191,7 @@ func (b *brain) updateData() error {
 	if err != nil {
 		b.errors <- err
 	}
-	err = b.UpdateFloorheatingKontuurAva(b.floorHeatingKlappStates)
+	err = b.UpdateFloorheatingCoverPosition(b.floorHeatingKlappStates)
 	if err != nil {
 		b.errors <- err
 	}
