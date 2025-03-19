@@ -1,1 +1,1 @@
-A home automation project for internal use
+A home automation project for my home
