@@ -22,7 +22,7 @@ func (b *brain) Emodule(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpHeatingAllowedWinterMode = *entity
+		b.heatPumpHeatingAllowedWinterMode = *entity
 		b.lo.Info("HeatPump", "heating heatpump allowed / winter mode", *entity)
 	}
 	// emodul controller state

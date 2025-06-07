@@ -29,18 +29,19 @@ type brain struct {
 	flootHeating                               floorheating.FloorHeating
 	nordpoolPrices                             nordpool.NordpoolPrices
 	dishwasherStart                            time.Time
-	heapPumpHeatingAllowedWinterMode           EntityState
-	heapPumpKeepWaterHeatingActive             EntityState // example: "on" / "off"
-	heapPumpKeepWaterHeaterBoost               EntityState // example: "on" / "off"
-	heapPumpTriggerHeatingActive               EntityState // example: "on" / "off"
-	heapPumpTriggerWaterHeaterActive           EntityState // example: "on" / "off"
-	heapPumpTriggerWaterHeaterBoost            EntityState // example: "on" / "off"
-	heapPumpTriggerHeatingSetTemp              EntityState
-	heapPumpHeatingIgnoreMaxPricePerHour       EntityState // example: "on" / "off"
+	heatPumpHeatingAllowedWinterMode           EntityState
+	heatPumpKeepWaterHeatingActive             EntityState // example: "on" / "off"
+	heatPumpKeepWaterHeaterBoost               EntityState // example: "on" / "off"
+	heatPumpTriggerHeatingActive               EntityState // example: "on" / "off"
+	heatPumpTriggerWaterHeaterActive           EntityState // example: "on" / "off"
+	heatPumpTriggerWaterHeaterBoost            EntityState // example: "on" / "off"
+	heatPumpTriggerHeatingSetTemp              EntityState
+	heatPumpHeatingIgnoreMaxPricePerHour       EntityState // example: "on" / "off"
 	heatPumpHeating                            ClimateState
 	heatPumpWaterHeater                        ClimateState
 	heatPumpWaterHeaterStartState              EntityState // example: "03:00:00"
 	heatPumpWaterHeaterStopState               EntityState // example: "06:00:00"
+	heatPumpExternalTemp                       *homeassistant.ThermostatState
 	heatPumpWaterHeaterStart                   time.Time
 	heatPumpWaterHeaterStop                    time.Time
 	heatPumpHeatingTempShift                   int32

@@ -5,8 +5,9 @@ import "github.com/jaanek/hassext/homeassistant"
 type EntityState string
 
 const (
-	ENTITY_HEATING      EntityState = "climate.altherma_leaving_water_offset" // "climate.altherma"
-	ENTITY_WATER_HEATER EntityState = "water_heater.altherma"
+	ENTITY_HEATING             EntityState = "climate.altherma_leaving_water_offset" // "climate.altherma"
+	ENTITY_WATER_HEATER        EntityState = "water_heater.altherma"
+	ENTITY_OUTDOOR_TEMPERATURE EntityState = "altherma_climatecontrol_outdoor_temperature"
 )
 
 type InputEntity string

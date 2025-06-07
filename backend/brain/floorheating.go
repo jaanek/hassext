@@ -155,5 +155,6 @@ func (b *brain) UpdateFloorheatingKontuurTargetTemp(klappStates map[floorheating
 		b.lo.Info("Floor heating kontuur target temperature. Manual operation is activated! Will not automatically update target temperature!")
 		return nil
 	}
-	return b.flootHeating.UpdateFloorHeatingTargetTemp(klappStates)
+	var katelInWinterMode = b.heatPumpHeatingAllowedWinterMode.State == "on"
+	return b.flootHeating.UpdateFloorHeatingTargetTemp(klappStates, katelInWinterMode, b.heatPumpExternalTemp)
 }

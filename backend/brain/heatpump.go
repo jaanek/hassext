@@ -65,7 +65,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpHeatingIgnoreMaxPricePerHour = *entity
+		b.heatPumpHeatingIgnoreMaxPricePerHour = *entity
 		b.lo.Info("HeatPump", "heating ignore max price per hour", *entity)
 	}
 	// trigger heating active
@@ -73,7 +73,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpTriggerHeatingActive = *entity
+		b.heatPumpTriggerHeatingActive = *entity
 		b.lo.Info("HeatPump", "trigger heating active", *entity)
 	}
 	// keep water heating active
@@ -81,7 +81,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpKeepWaterHeatingActive = *entity
+		b.heatPumpKeepWaterHeatingActive = *entity
 		b.lo.Info("HeatPump", "keep water heating active", *entity)
 	}
 	// keep water heater boost active
@@ -89,7 +89,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpKeepWaterHeaterBoost = *entity
+		b.heatPumpKeepWaterHeaterBoost = *entity
 		b.lo.Info("HeatPump", "keep water heater boost active", *entity)
 	}
 	// trigger water heater active
@@ -97,7 +97,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpTriggerWaterHeaterActive = *entity
+		b.heatPumpTriggerWaterHeaterActive = *entity
 		b.lo.Info("HeatPump", "trigger waterheater active", *entity)
 	}
 	// trigger water heater boost
@@ -105,7 +105,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpTriggerWaterHeaterBoost = *entity
+		b.heatPumpTriggerWaterHeaterBoost = *entity
 		b.lo.Info("HeatPump", "trigger waterheater boost", *entity)
 	}
 	// trigger heating set temp
@@ -113,7 +113,7 @@ func (b *brain) HeatPump(state data.DataValue) {
 	if err != nil {
 		b.errors <- err
 	} else {
-		b.heapPumpTriggerHeatingSetTemp = *entity
+		b.heatPumpTriggerHeatingSetTemp = *entity
 		b.lo.Info("HeatPump", "trigger heating set temp", *entity)
 	}
 	// heating temp shift
@@ -128,6 +128,14 @@ func (b *brain) HeatPump(state data.DataValue) {
 			b.heatPumpHeatingTempShift = int32(temp)
 		}
 		b.lo.Info("HeatPump", "trigger heating set temp", *entity)
+	}
+	// heatpump external temp
+	outdoorTemp, err := homeassistant.ParseThermostatState(homeassistant.StateThermostatPrefix+string(heatpump.ENTITY_OUTDOOR_TEMPERATURE), state)
+	if err != nil {
+		b.errors <- err
+	} else {
+		b.heatPumpExternalTemp = outdoorTemp
+		b.lo.Info("HeatPump", "external temperature", *outdoorTemp)
 	}
 }
 
@@ -292,8 +300,8 @@ func (b *brain) SetHeatPumpWaterTankStartStopTime(hourStart, hourEnd int, todayP
 const MAX_PRICE_PER_HOUR float64 = 200
 
 func (b *brain) SetHeatPumpWaterHeating(nowHour int, currentPrice float64) error {
-	var keepWaterHeatingActive = b.heapPumpKeepWaterHeatingActive.State == "on"
-	var keepWaterHeaterBoostActive = b.heapPumpKeepWaterHeaterBoost.State == "on"
+	var keepWaterHeatingActive = b.heatPumpKeepWaterHeatingActive.State == "on"
+	var keepWaterHeaterBoostActive = b.heatPumpKeepWaterHeaterBoost.State == "on"
 
 	// check if we need to trigger waterheater start
 	var waterHeaterStartTime, waterHeaterStopTime *time.Time
@@ -387,7 +395,7 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 
 	// if katel is running and it is in winter mode then switch the heatpump off
 	var katelRunning = !b.EmodulIsDamped()
-	var katelInWinterMode = b.heapPumpHeatingAllowedWinterMode.State == "on"
+	var katelInWinterMode = b.heatPumpHeatingAllowedWinterMode.State == "on"
 	if katelRunning && katelInWinterMode { // && b.heatPumpHeating.State != "off"
 		// TODO: switch the heatpump off
 		var newTemp = -10
@@ -422,13 +430,13 @@ func (b *brain) SetHeatPumpHeating(todayPrices []float64, maxPricePerHour float6
 	}
 
 	// if current price is bigger than we allow then stop the heater
-	var ignoreMaxPriceCuts = b.heapPumpHeatingIgnoreMaxPricePerHour.State == "on"
+	var ignoreMaxPriceCuts = b.heatPumpHeatingIgnoreMaxPricePerHour.State == "on"
 	var heatingOff = ((currentPrice > maxPrice) || maxPriceAbove) && !ignoreMaxPriceCuts
 	var heatingNote = "on"
 	if heatingOff {
 		heatingNote = "off"
 	}
-	b.lo.Info(fmt.Sprintf("HeatPump setting heating %v", heatingNote), "nowHour", nowHour, "currentPrice", currentPrice, "max price from today", maxPrice, "hard max price", MAX_PRICE_PER_HOUR, "ignore max price per hour", b.heapPumpHeatingIgnoreMaxPricePerHour.State)
+	b.lo.Info(fmt.Sprintf("HeatPump setting heating %v", heatingNote), "nowHour", nowHour, "currentPrice", currentPrice, "max price from today", maxPrice, "hard max price", MAX_PRICE_PER_HOUR, "ignore max price per hour", b.heatPumpHeatingIgnoreMaxPricePerHour.State)
 	if heatingOff {
 		// if b.heatPumpHeating.State != "off" {}
 		b.lo.Info("HeatPump", "setting heating off")
@@ -465,7 +473,7 @@ func (b *brain) SetHeatPumpTemperature(todayPrices []float64) error {
 
 	// if katel is running and it is in winter mode then no heatpump things
 	var katelRunning = !b.EmodulIsDamped()
-	var katelInWinterMode = b.heapPumpHeatingAllowedWinterMode.State == "on"
+	var katelInWinterMode = b.heatPumpHeatingAllowedWinterMode.State == "on"
 	if katelRunning && katelInWinterMode {
 		b.lo.Info("HeatPump temps off because katel is running & in winter mode")
 		return nil

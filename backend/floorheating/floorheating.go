@@ -60,7 +60,7 @@ const (
 	FLOOR_HEATING_BUFFER_TOP_TEMPERATURE    FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_top"
 	FLOOR_HEATING_BUFFER_BOTTOM_TEMPERATURE FloorHeatingKlapp = "garaaz_pipes_temperatures_buffer_bottom"
 	HEATING_CURVE_OFFSET_TEMPERATURE        FloorHeatingKlapp = "floor_heating_heating_curve_offset"
-	ENTITY_EXTERNAL_TEMPERATURE             FloorHeatingKlapp = "external_temperature"
+	ENTITY_EXTERNAL_TEMPERATURE             FloorHeatingKlapp = "katel_external_temperature_temperature" // external_temperature
 )
 
 const (
@@ -146,7 +146,7 @@ const (
 type FloorHeating interface {
 	CheckFloorHeatingValves(valveStates map[FloorHeatingValveEntityId]*homeassistant.SwitchState) error
 	SetFloorHeatingCoverPosition(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
-	UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error
+	UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState, katelInWinterMode bool, heatPumpExternalTemp *homeassistant.ThermostatState) error
 }
 
 type floorHeating struct {
@@ -216,7 +216,7 @@ func New(log logf.Logger, sqliteDir string, mq mq.MqttClient, ha homeassistant.H
 // 	return nil
 // }
 
-func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState) error {
+func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeatingKlapp]*homeassistant.ThermostatState, katelInWinterMode bool, heatPumpExternalTemp *homeassistant.ThermostatState) error {
 	t.log.Info(t.prefix + "Checking floor heating kontuur temperature ...")
 	var targetTemp = klappStates[FLOOR_HEATING_TARGET_TEMPERATURE]
 	if targetTemp == nil {
@@ -226,12 +226,19 @@ func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeating
 	if externalTemp == nil {
 		return fmt.Errorf("No floor heating external/välis temperature not found!")
 	}
+
+	// if katel is not in winter mode then use the heatpump external temperature
+	if !katelInWinterMode && heatPumpExternalTemp != nil {
+		externalTemp = heatPumpExternalTemp
+		t.log.Info(t.prefix + fmt.Sprintf("Katel not in winter mode. Using heatpump external temperature: %v", externalTemp.CurrentTemperature))
+	}
+
 	var heatingCurveOffsetTemp int = 0
 	var heatingCurveOffset = klappStates[HEATING_CURVE_OFFSET_TEMPERATURE]
 	if heatingCurveOffset != nil {
 		heatingCurveOffsetTemp = int(heatingCurveOffset.CurrentTemperature)
 	}
-	t.log.Info(t.prefix + fmt.Sprintf("heating curve. Current target temperature: %v, external temperature: %v", targetTemp.CurrentTemperature, externalTemp.CurrentTemperature))
+	t.log.Info(t.prefix + fmt.Sprintf("heating curve. Current target temperature: %v, external temperature: %v, heating curve offset: %v", targetTemp.CurrentTemperature, externalTemp.CurrentTemperature, heatingCurveOffsetTemp))
 
 	// open local sqlite db
 	db, err := t.openAppDatabase()
@@ -256,6 +263,7 @@ func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeating
 	var currExtTemp = externalTemp.CurrentTemperature
 	var lowerItem *model.HeatingCurveItem
 	var higherItem *model.HeatingCurveItem
+	var biggestItem = &items[0]
 	for _, item := range items {
 		fmt.Printf("Heating curve External Temperature: %d\n", item.ExternalTemperature)
 		if float64(item.ExternalTemperature) >= currExtTemp {
@@ -263,15 +271,24 @@ func (t *floorHeating) UpdateFloorHeatingTargetTemp(klappStates map[FloorHeating
 			break
 		}
 		lowerItem = &item
+
+		// set the biggest temp item
+		if item.ExternalTemperature > biggestItem.ExternalTemperature {
+			biggestItem = &item
+		}
 	}
-	// if one of them is not then get the first row taret temp
 	var newTargetTemperature int
-	if lowerItem == nil || higherItem == nil {
-		newTargetTemperature = items[0].TargetTemperature
+	if higherItem == nil {
+		// temp outside is higher than all the heat curve items, get target temp of biggest temp item
+		newTargetTemperature = biggestItem.TargetTemperature
+		fmt.Printf("Selected biggest item. Highest temp item: %d\n", biggestItem.ExternalTemperature, biggestItem.ExternalTemperature)
 	} else {
+		// if one of them is not then get the first row taret temp
 		var target = interpolate(*lowerItem, *higherItem, currExtTemp)
 		newTargetTemperature = int(math.Round(target))
+		fmt.Printf("Selected higher and lower temps. Higher: %d, Lower: %d\n", higherItem.ExternalTemperature, lowerItem.ExternalTemperature)
 	}
+
 	// set the heating curve offset
 	newTargetTemperature += heatingCurveOffsetTemp
 
@@ -475,8 +492,15 @@ func (t *floorHeating) turnFloorHeatingValves(valveStates map[FloorHeatingValveE
 		switch valve.Name() {
 		case FLOOR_HEATING_VALVE_NAME_ESIK:
 			{
-				// needs to be turned on on winter time because esik gets cold otherwise
-				newState = FloorHeatingValveStatusOn
+				// needs to be turned on from end of September to end of May because esik gets cold otherwise
+				month := time.Now().Month()
+
+				// OFF only during summer months
+				var offtime = month == time.May || month == time.June || month == time.July || month == time.August || month == time.September
+				if !offtime {
+					// Force ON during winter period
+					newState = FloorHeatingValveStatusOn
+				}
 			}
 		}
 		// check if homeassistant valve state is not in sync with new calculation of valve state based on thermostat value
