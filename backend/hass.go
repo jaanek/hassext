@@ -22,6 +22,7 @@ import (
 	"github.com/jaanek/hassext/smtp"
 	"github.com/jaanek/hassext/snapcast"
 	"github.com/jaanek/hassext/sound"
+	"github.com/jaanek/hassext/spotify"
 	"github.com/jaanek/hassext/sqlite"
 	"github.com/jaanek/hassext/uponor"
 	"github.com/knadh/koanf"
@@ -40,6 +41,7 @@ type HassExt struct {
 	HA           homeassistant.HomeAssistant
 	Brain        brain.Brain
 	Chromecasts  chromecast.Chromecasts
+	Spotify      spotify.Spotify
 	Mailer       mailer.Mailer
 	SmsSender    sms.Sender
 	FloorHeating floorheating.FloorHeating
@@ -100,7 +102,33 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		return nil, fmt.Errorf("Error loading client certs: %w", err)
 	}
 	chromecasts := chromecast.NewDevices(lo, "", ko.Strings("chromecast.devices"), &cert)
-	sound := sound.New(lo, hub, sc, chromecasts)
+	// Spotify Web API client: drives the Spotify Connect receiver (librespot) in
+	// the living room from the IKEA sound remote. Optional.
+	var sp spotify.Spotify
+	if ko.String("spotify.clientId") != "" {
+		sp = spotify.New(lo, &spotify.Params{
+			ClientId:     ko.String("spotify.clientId"),
+			ClientSecret: ko.String("spotify.clientSecret"),
+			RefreshToken: ko.String("spotify.refreshToken"),
+			DataDir:      dataDir,
+		})
+	} else {
+		lo.Warn("[spotify] not configured (spotify.clientId is empty): living room remote keeps the snapcast only behaviour")
+	}
+	spotifyOpts := sound.SpotifyOptions{
+		DeviceName:      ko.String("spotify.deviceName"),
+		DataDir:         dataDir,
+		MorningPlaylist: ko.String("spotify.morningPlaylist"),
+		MorningFrom:     ko.String("spotify.morningFrom"),
+		MorningTo:       ko.String("spotify.morningTo"),
+	}
+	if spotifyOpts.MorningFrom == "" {
+		spotifyOpts.MorningFrom = "06:00"
+	}
+	if spotifyOpts.MorningTo == "" {
+		spotifyOpts.MorningTo = "09:30"
+	}
+	sound := sound.New(lo, hub, sc, chromecasts, sp, spotifyOpts)
 	ha := homeassistant.NewHomeAssistantClient(lo, &homeassistant.HttpClientParams{
 		ApiUrl: ko.String("homeassistant.apiUrl"),
 		Token:  ko.String("homeassistant.token"),
@@ -123,6 +151,7 @@ func Init(ko *koanf.Koanf, lo logf.Logger) (*HassExt, error) {
 		HA:           ha,
 		Brain:        brain,
 		Chromecasts:  chromecasts,
+		Spotify:      sp,
 		Mailer:       mailer,
 		SmsSender:    smsSender,
 		FloorHeating: flootHeating,
@@ -144,6 +173,9 @@ func (h *HassExt) Run(ctx context.Context) error {
 	// start sound listener
 	go func() {
 		h.Sound.Init()
+	}()
+	go func() {
+		h.Sound.Run(ctx)
 	}()
 
 	// Start Snapcast

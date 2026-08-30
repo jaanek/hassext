@@ -1,13 +1,16 @@
 package sound
 
 import (
+	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/jaanek/hassext/chromecast"
 	"github.com/jaanek/hassext/hub"
 	"github.com/jaanek/hassext/jblbar"
 	"github.com/jaanek/hassext/snapcast"
+	"github.com/jaanek/hassext/spotify"
 	"github.com/zerodha/logf"
 )
 
@@ -22,6 +25,8 @@ const (
 
 type Sound interface {
 	Init()
+	// Run runs background work (Spotify listening history polling) until ctx is done.
+	Run(context.Context)
 	Shutdown()
 }
 
@@ -38,6 +43,14 @@ type IkeaButtons struct {
 	enabled          bool
 	listenTopic      string
 	snapcastClientId string
+	// optional: when set, play/pause and back/forward (track_previous/track_next)
+	// drive Spotify on this zone instead of the snapcast streams. The dots
+	// buttons keep selecting the snapcast (radio) streams.
+	spotify *SpotifyRemote
+	// Spotify was started from this remote: keep the snapcast client muted so
+	// that the radio does not play over Spotify (volume buttons do not unmute).
+	spotifyActive bool
+	outputMu      sync.Mutex // serializes spotifyOutputOn (runs concurrently with Spotify calls)
 }
 
 func (s *IkeaButtons) Topic() string {
@@ -179,9 +192,10 @@ func (s *IkeaButtons) Receive(data []byte) error {
 	// check which action to take
 	switch msg.Action {
 	// remote new
-	case "toggle": // in new update versions is this
-		fallthrough
-	case "play_pause":
+	case "toggle", "play_pause": // "toggle" in new zigbee2mqtt versions
+		if s.spotify != nil {
+			return s.spotifyToggle(ensureOnline)
+		}
 		var client, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			if wasMuted {
@@ -221,9 +235,8 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			StreamId: streamId,
 		})
-	case "volume_down_hold":
-		fallthrough
-	case "arrow_left_hold":
+	case "volume_down_hold", "arrow_left_hold":
+		s.spotifyStop()
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -241,9 +254,8 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			StreamId: streamId,
 		})
-	case "volume_up_hold":
-		fallthrough
-	case "arrow_right_hold":
+	case "volume_up_hold", "arrow_right_hold":
+		s.spotifyStop()
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -261,12 +273,12 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			StreamId: streamId,
 		})
-	case "volume_up":
-		fallthrough
-	case "arrow_right_click":
-		var _, wasMuted, err = unmuteIfMuted()
-		if err != nil || wasMuted {
-			return err
+	case "volume_up", "arrow_right_click":
+		if !s.spotifyActive {
+			var _, wasMuted, err = unmuteIfMuted()
+			if err != nil || wasMuted {
+				return err
+			}
 		}
 		switch s.snapcastClientId {
 		case ClientIdElutubaTv:
@@ -285,12 +297,12 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				IncStep:  2,
 			})
 		}
-	case "volume_down":
-		fallthrough
-	case "arrow_left_click":
-		var _, wasMuted, err = unmuteIfMuted()
-		if err != nil || wasMuted {
-			return err
+	case "volume_down", "arrow_left_click":
+		if !s.spotifyActive {
+			var _, wasMuted, err = unmuteIfMuted()
+			if err != nil || wasMuted {
+				return err
+			}
 		}
 		switch s.snapcastClientId {
 		case ClientIdElutubaTv:
@@ -309,11 +321,12 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				IncStep:  -2,
 			})
 		}
-	case "track_previous":
-		fallthrough
-	case "dots_1_initial_press":
-		fallthrough
-	case "on":
+	case "track_previous", "dots_1_initial_press", "on":
+		if s.spotify != nil && msg.Action == "track_previous" {
+			// back: older recently played Spotify channel
+			return s.spotifySelect(false, ensureOnline)
+		}
+		s.spotifyStop()
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -323,11 +336,12 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			ClientId: s.snapcastClientId,
 			Up:       true,
 		})
-	case "track_next":
-		fallthrough
-	case "dots_2_initial_press":
-		fallthrough
-	case "off":
+	case "track_next", "dots_2_initial_press", "off":
+		if s.spotify != nil && msg.Action == "track_next" {
+			// forward: more recent recently played Spotify channel
+			return s.spotifySelect(true, ensureOnline)
+		}
+		s.spotifyStop()
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -344,11 +358,19 @@ func (s *IkeaButtons) Receive(data []byte) error {
 type sound struct {
 	hub       *hub.Hub
 	listeners []SoundListener
+	spotify   *SpotifyRemote
 }
 
-func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast, chromecasts chromecast.Chromecasts) Sound {
+// New creates the sound button listeners. sp is optional: when given, the
+// living room (elutuba) remote drives Spotify on spotifyOpts.DeviceName.
+func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast, chromecasts chromecast.Chromecasts, sp spotify.Spotify, spotifyOpts SpotifyOptions) Sound {
+	var spotifyRemote *SpotifyRemote
+	if sp != nil {
+		spotifyRemote = NewSpotifyRemote(lo, sp, spotifyOpts)
+	}
 	return &sound{
-		hub: h,
+		hub:     h,
+		spotify: spotifyRemote,
 		listeners: []SoundListener{
 			&IkeaButtons{
 				prefix:           "[sound-ikea-buttons-leiliruum] ",
@@ -376,6 +398,7 @@ func New(lo logf.Logger, h *hub.Hub, snapcast snapcast.Snapcast, chromecasts chr
 				enabled:          true,
 				listenTopic:      TopicElutubaTvSoundButtons,
 				snapcastClientId: ClientIdElutubaTv,
+				spotify:          spotifyRemote,
 			},
 		},
 	}
@@ -388,6 +411,12 @@ func (s *sound) Init() {
 			Topic:  listener.Topic(),
 			Client: listener,
 		}
+	}
+}
+
+func (s *sound) Run(ctx context.Context) {
+	if s.spotify != nil {
+		s.spotify.Run(ctx)
 	}
 }
 

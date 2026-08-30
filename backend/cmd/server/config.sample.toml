@@ -22,3 +22,12 @@ apiUrl = "https://snapcast.oja.me"
 [homeassistant]
 apiUrl = "https://hass.oja.me/api"
 token = ""
+
+[spotify]
+clientId = ""       # from https://developer.spotify.com/dashboard
+clientSecret = ""
+refreshToken = ""   # from: go run ./cmd/spotify-auth
+deviceName = "LivingRoom" # librespot device name on rpi-livingroom (LIBRESPOT_NAME)
+morningPlaylist = "" # library playlist (or spotify:playlist:... uri) the play button starts in the morning; empty = disabled
+morningFrom = "06:00"                          # morning window, local time
+morningTo = "09:30"
