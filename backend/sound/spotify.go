@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jaanek/hassext/spotify"
@@ -64,6 +65,12 @@ type SpotifyRemote struct {
 	dataDir    string
 	morning    SpotifyOptions
 	morningUri string // resolved uri of the morning playlist
+
+	seq atomic.Int64 // bumped on every user command; stops stale verifications
+	// lastSkipMs throttles song skips: too many track changes in a short
+	// window trip Spotify's audio-key rate limit, after which librespot marks
+	// tracks unavailable and races through the whole queue on its own
+	lastSkipMs atomic.Int64
 
 	mu         sync.Mutex
 	device     *spotify.Device   // cached: the device id is stable while librespot runs
@@ -226,11 +233,20 @@ func (r *SpotifyRemote) withDevice(fn func(dev *spotify.Device) error) error {
 	r.mu.Lock()
 	dev := r.device
 	r.mu.Unlock()
-	for attempt := 0; attempt < 2; attempt++ {
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
 		if dev == nil {
 			var err error
 			dev, err = r.sp.FindDevice(r.deviceName)
 			if err != nil {
+				// librespot crashes now and then and re-registers within a few
+				// seconds of restarting: wait for it instead of failing the press
+				if errors.Is(err, spotify.ErrNoDevice) && attempt < 3 {
+					r.lo.Warn(r.prefix+"Device not in the list (receiver restarting?), waiting", "device", r.deviceName, "attempt", attempt)
+					lastErr = err
+					time.Sleep(2500 * time.Millisecond)
+					continue
+				}
 				return err
 			}
 			r.mu.Lock()
@@ -238,16 +254,17 @@ func (r *SpotifyRemote) withDevice(fn func(dev *spotify.Device) error) error {
 			r.mu.Unlock()
 		}
 		err := fn(dev)
-		if err == nil || !spotify.IsNotFound(err) || attempt > 0 {
+		if err == nil || !spotify.IsNotFound(err) {
 			return err
 		}
 		r.lo.Warn(r.prefix+"Device not found, looking it up again", "device", dev.Name, "error", err)
+		lastErr = err
 		r.mu.Lock()
 		r.device = nil
 		r.mu.Unlock()
 		dev = nil
 	}
-	return nil
+	return lastErr
 }
 
 // prepare runs beforeStart concurrently and returns a channel that is closed
@@ -268,6 +285,7 @@ func (r *SpotifyRemote) prepare(beforeStart func()) <-chan struct{} {
 // started, so that the caller can prepare the audio output. Returns whether
 // playback was started.
 func (r *SpotifyRemote) Toggle(beforeStart func()) (bool, error) {
+	r.bumpSeq()
 	state, err := r.sp.Player()
 	if err != nil {
 		return false, err
@@ -277,10 +295,10 @@ func (r *SpotifyRemote) Toggle(beforeStart func()) (bool, error) {
 		r.lo.Info(r.prefix+"Paused", "device", state.Device.Name, "playing", r.describe(state))
 		return false, err
 	}
-	done := r.prepare(beforeStart)
-	err = r.start(state)
-	<-done
-	return true, err
+	// fire and forget: preparing the output (sound bar power on etc) can be
+	// slow and must never block the button handling
+	r.prepare(beforeStart)
+	return true, r.start(state)
 }
 
 // start starts playback on our device: resumes the current playback (wherever
@@ -299,6 +317,7 @@ func (r *SpotifyRemote) start(state *spotify.PlayerState) error {
 					r.lo.Warn(r.prefix+"Playing morning playlist failed, falling back", "playlist", r.morning.MorningPlaylist, "error", err)
 				} else {
 					r.setCurrent(uri)
+					r.verifyStarted(uri)
 					r.lo.Info(r.prefix+"Playing morning playlist", "device", dev.Name, "playlist", r.morning.MorningPlaylist, "uri", uri)
 					return nil
 				}
@@ -315,6 +334,7 @@ func (r *SpotifyRemote) start(state *spotify.PlayerState) error {
 				if state.Context != nil {
 					r.setCurrent(state.Context.Uri)
 				}
+				r.verifyStarted("")
 				r.lo.Info(r.prefix+"Resumed", "device", dev.Name, "from", state.Device.Name, "playing", r.describe(state))
 				return nil
 			}
@@ -341,14 +361,15 @@ func (r *SpotifyRemote) start(state *spotify.PlayerState) error {
 // device. beforeStart is called when Spotify was not playing on our device
 // yet. Returns the selected channel.
 func (r *SpotifyRemote) Select(forward bool, beforeStart func()) (spotify.Context, error) {
+	r.bumpSeq()
 	var selected spotify.Context
 	state, err := r.sp.Player()
 	if err != nil {
 		return selected, err
 	}
 	if !r.playingHere(state) {
-		// prepare the audio output while the channel is being started
-		defer func(done <-chan struct{}) { <-done }(r.prepare(beforeStart))
+		// fire and forget: prepare the audio output while the channel starts
+		r.prepare(beforeStart)
 	}
 	err = r.withDevice(func(dev *spotify.Device) error {
 		r.mu.Lock()
@@ -396,9 +417,42 @@ func (r *SpotifyRemote) Select(forward bool, beforeStart func()) (spotify.Contex
 	return selected, err
 }
 
+// Skip goes to the next (forward=true) or previous song of the playing
+// channel. Returns false, without doing anything, when Spotify is not
+// playing on our device - the buttons then keep their radio meaning.
+func (r *SpotifyRemote) Skip(forward bool) (bool, error) {
+	r.bumpSeq()
+	state, err := r.sp.Player()
+	if err != nil {
+		return false, err
+	}
+	if !r.playingHere(state) {
+		return false, nil
+	}
+	now := time.Now().UnixMilli()
+	if now-r.lastSkipMs.Load() < 1200 {
+		r.lo.Info(r.prefix+"Skip ignored, too soon after the previous one", "forward", forward)
+		return true, nil
+	}
+	r.lastSkipMs.Store(now)
+	if forward {
+		err = r.sp.Next(state.Device.Id)
+	} else {
+		// note: librespot treats "previous" like the Spotify app does — more
+		// than ~3s into a song it rewinds to the start, and only a quick
+		// second press jumps to the previous song
+		err = r.sp.Previous(state.Device.Id)
+	}
+	if err == nil {
+		r.lo.Info(r.prefix+"Skipped", "forward", forward, "from", r.describe(state))
+	}
+	return true, err
+}
+
 // Stop pauses Spotify when it is playing on our device. Returns whether it
 // was playing.
 func (r *SpotifyRemote) Stop() (bool, error) {
+	r.bumpSeq()
 	state, err := r.sp.Player()
 	if err != nil {
 		return false, err
@@ -411,6 +465,47 @@ func (r *SpotifyRemote) Stop() (bool, error) {
 	return true, err
 }
 
+func (r *SpotifyRemote) bumpSeq() int64 { return r.seq.Add(1) }
+func (r *SpotifyRemote) curSeq() int64  { return r.seq.Load() }
+
+// verifyStarted checks in the background that playback really started on our
+// device after a successful play command, and retries it when it did not.
+// A play command is accepted by Spotify even when the receiver (librespot)
+// has silently lost its session; Spotify then drops the device and librespot
+// re-registers within ~20s - so retry with a fresh device lookup. The retries
+// stop as soon as the user issues a newer command (seq changes).
+func (r *SpotifyRemote) verifyStarted(uri string) {
+	seq := r.curSeq()
+	go func() {
+		for _, delay := range []time.Duration{2500 * time.Millisecond, 4 * time.Second, 8 * time.Second, 8 * time.Second} {
+			time.Sleep(delay)
+			if r.curSeq() != seq {
+				return // superseded by a newer command
+			}
+			state, err := r.sp.Player()
+			if err != nil {
+				r.lo.Warn(r.prefix+"Playback verification failed", "error", err)
+				return
+			}
+			if r.playingHere(state) {
+				return // all good
+			}
+			r.lo.Warn(r.prefix+"Playback did not start, retrying with a fresh device lookup", "uri", uri)
+			r.mu.Lock()
+			r.device = nil
+			r.mu.Unlock()
+			err = r.withDevice(func(dev *spotify.Device) error {
+				return r.sp.Play(dev.Id, uri)
+			})
+			if err != nil {
+				r.lo.Warn(r.prefix+"Playback retry failed", "uri", uri, "error", err)
+				continue
+			}
+			r.lo.Info(r.prefix+"Playback retried", "uri", uri)
+		}
+	}()
+}
+
 // playChannel plays contexts[idx] on the device. Must be called with the lock held.
 func (r *SpotifyRemote) playChannel(dev *spotify.Device, idx int) error {
 	ctx := r.contexts[idx]
@@ -420,6 +515,7 @@ func (r *SpotifyRemote) playChannel(dev *spotify.Device, idx int) error {
 	r.cursor = idx
 	r.current = ctx.Uri
 	r.selectedAt = time.Now()
+	r.verifyStarted(ctx.Uri)
 	total := len(r.contexts)
 	// resolving the name may need an api call: keep it off the button path
 	go r.lo.Info(r.prefix+"Playing channel", "device", dev.Name, "channel", r.channelName(ctx), "index", idx, "of", total, "uri", ctx.Uri)
@@ -639,12 +735,11 @@ func (r *SpotifyRemote) describe(state *spotify.PlayerState) string {
 
 // spotifyToggle handles the play/pause button when the zone drives Spotify.
 func (s *IkeaButtons) spotifyToggle(ensureOnline func()) error {
-	started, err := s.spotify.Toggle(func() { s.spotifyOutputOn(ensureOnline) })
+	_, err := s.spotify.Toggle(func() { s.spotifyOutputOn(ensureOnline) })
 	if err != nil {
 		s.lo.Error(s.prefix+"Spotify play/pause failed", "error", err)
 		return err
 	}
-	s.spotifyActive = started
 	return nil
 }
 
@@ -656,20 +751,24 @@ func (s *IkeaButtons) spotifySelect(forward bool, ensureOnline func()) error {
 		s.lo.Error(s.prefix+"Spotify channel select failed", "forward", forward, "error", err)
 		return err
 	}
-	s.spotifyActive = true
 	s.lo.Info(s.prefix+"Spotify channel selected", "uri", ctx.Uri, "hint", ctx.Hint, "forward", forward)
 	return nil
 }
 
-// spotifyStop pauses Spotify when it plays on this zone, because the user is
-// switching over to the snapcast (radio) streams.
-func (s *IkeaButtons) spotifyStop() {
-	s.spotifyActive = false
-	if s.spotify == nil {
+// spotifySkip handles the dots buttons while Spotify plays on this zone:
+// next (forward=true) / previous song of the playing channel. Returns whether
+// the press was handled (false: Spotify not playing, keep the radio meaning).
+func (s *IkeaButtons) spotifySkip(forward bool, ensureOnline func()) {
+	handled, err := s.spotify.Skip(forward)
+	if err != nil {
+		s.lo.Error(s.prefix+"Spotify skip failed", "forward", forward, "error", err)
 		return
 	}
-	if _, err := s.spotify.Stop(); err != nil {
-		s.lo.Warn(s.prefix+"Spotify stop failed", "error", err)
+	if !handled {
+		// nothing is playing (e.g. "previous" on the first track stopped the
+		// player, or the receiver restarted): start playback again
+		s.lo.Info(s.prefix+"Spotify skip: not playing, starting playback", "forward", forward)
+		_ = s.spotifyToggle(ensureOnline)
 	}
 }
 

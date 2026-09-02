@@ -57,6 +57,10 @@ type Spotify interface {
 	Play(deviceId string, contextUri string) error
 	// Pause pauses playback on the device.
 	Pause(deviceId string) error
+	// Next skips to the next track on the device.
+	Next(deviceId string) error
+	// Previous skips to the previous track on the device.
+	Previous(deviceId string) error
 	// RecentlyPlayedContexts returns the distinct contexts (playlists, albums,
 	// ...) the user has recently listened to, most recent first. Spotify only
 	// keeps the last 50 played tracks, so this covers a few hours at most.
@@ -96,9 +100,10 @@ type Context struct {
 }
 
 type PlayerState struct {
-	Device    Device   `json:"device"`
-	IsPlaying bool     `json:"is_playing"`
-	Context   *Context `json:"context"`
+	Device     Device   `json:"device"`
+	IsPlaying  bool     `json:"is_playing"`
+	ProgressMs int      `json:"progress_ms"`
+	Context    *Context `json:"context"`
 	Item      *struct {
 		Name string `json:"name"`
 		Uri  string `json:"uri"`
@@ -399,6 +404,20 @@ func (s *spotify) Pause(deviceId string) error {
 	q := url.Values{}
 	q.Set("device_id", deviceId)
 	_, err := s.call(http.MethodPut, "/me/player/pause", q, nil)
+	return err
+}
+
+func (s *spotify) Next(deviceId string) error {
+	q := url.Values{}
+	q.Set("device_id", deviceId)
+	_, err := s.call(http.MethodPost, "/me/player/next", q, nil)
+	return err
+}
+
+func (s *spotify) Previous(deviceId string) error {
+	q := url.Values{}
+	q.Set("device_id", deviceId)
+	_, err := s.call(http.MethodPost, "/me/player/previous", q, nil)
 	return err
 }
 

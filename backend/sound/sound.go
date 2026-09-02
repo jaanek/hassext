@@ -43,14 +43,12 @@ type IkeaButtons struct {
 	enabled          bool
 	listenTopic      string
 	snapcastClientId string
-	// optional: when set, play/pause and back/forward (track_previous/track_next)
-	// drive Spotify on this zone instead of the snapcast streams. The dots
-	// buttons keep selecting the snapcast (radio) streams.
-	spotify *SpotifyRemote
-	// Spotify was started from this remote: keep the snapcast client muted so
-	// that the radio does not play over Spotify (volume buttons do not unmute).
-	spotifyActive bool
-	outputMu      sync.Mutex // serializes spotifyOutputOn (runs concurrently with Spotify calls)
+	// optional: when set, the zone is a pure Spotify remote: play/pause toggles
+	// Spotify, back/forward select a channel of the listening history, the dots
+	// skip next/previous song. The snapcast (radio) stream actions are disabled
+	// for the zone (the snapcast client stays muted).
+	spotify  *SpotifyRemote
+	outputMu sync.Mutex // serializes spotifyOutputOn (runs concurrently with Spotify calls)
 }
 
 func (s *IkeaButtons) Topic() string {
@@ -85,7 +83,8 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				s.lo.Error(s.prefix+"jbl-bar streaming status failed", "error", err)
 				return
 			}
-			if streamingResult.Status.Source == jblbar.StreamingSourceIdle {
+			var wasIdle = streamingResult.Status.Source == jblbar.StreamingSourceIdle
+			if wasIdle {
 				// power it on
 				var cmdResult = jblbar.CommandResultError{}
 				var powerOn = jblbar.KeyPressedPower
@@ -157,10 +156,13 @@ func (s *IkeaButtons) Receive(data []byte) error {
 				}
 			}
 
-			// set default volume for sound
-			err = cc.SetVolume(chromecastVolumeStart)
-			if err != nil {
-				s.lo.Error(s.prefix+"Setting start volume failed", "error", err)
+			// set default volume only when waking the bar from idle; when it
+			// was already on, keep whatever volume the user has set
+			if wasIdle {
+				err = cc.SetVolume(chromecastVolumeStart)
+				if err != nil {
+					s.lo.Error(s.prefix+"Setting start volume failed", "error", err)
+				}
 			}
 
 			// if morning (6am-9am) then set skyplus
@@ -236,7 +238,9 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			StreamId: streamId,
 		})
 	case "volume_down_hold", "arrow_left_hold":
-		s.spotifyStop()
+		if s.spotify != nil {
+			return nil // radio streams are disabled on the Spotify zone
+		}
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -255,7 +259,9 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			StreamId: streamId,
 		})
 	case "volume_up_hold", "arrow_right_hold":
-		s.spotifyStop()
+		if s.spotify != nil {
+			return nil // radio streams are disabled on the Spotify zone
+		}
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -274,7 +280,7 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			StreamId: streamId,
 		})
 	case "volume_up", "arrow_right_click":
-		if !s.spotifyActive {
+		if s.spotify == nil { // never unmute the radio on the Spotify zone
 			var _, wasMuted, err = unmuteIfMuted()
 			if err != nil || wasMuted {
 				return err
@@ -298,7 +304,7 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			})
 		}
 	case "volume_down", "arrow_left_click":
-		if !s.spotifyActive {
+		if s.spotify == nil { // never unmute the radio on the Spotify zone
 			var _, wasMuted, err = unmuteIfMuted()
 			if err != nil || wasMuted {
 				return err
@@ -322,11 +328,15 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			})
 		}
 	case "track_previous", "dots_1_initial_press", "on":
-		if s.spotify != nil && msg.Action == "track_previous" {
+		if s.spotify != nil {
+			if msg.Action == "dots_1_initial_press" {
+				// single dot: previous song in the channel
+				s.spotifySkip(false, ensureOnline)
+				return nil
+			}
 			// back: older recently played Spotify channel
 			return s.spotifySelect(false, ensureOnline)
 		}
-		s.spotifyStop()
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
@@ -337,11 +347,15 @@ func (s *IkeaButtons) Receive(data []byte) error {
 			Up:       true,
 		})
 	case "track_next", "dots_2_initial_press", "off":
-		if s.spotify != nil && msg.Action == "track_next" {
+		if s.spotify != nil {
+			if msg.Action == "dots_2_initial_press" {
+				// double dot: next song in the channel
+				s.spotifySkip(true, ensureOnline)
+				return nil
+			}
 			// forward: more recent recently played Spotify channel
 			return s.spotifySelect(true, ensureOnline)
 		}
-		s.spotifyStop()
 		var _, wasMuted, err = unmuteIfMuted()
 		if err != nil || wasMuted {
 			return err
